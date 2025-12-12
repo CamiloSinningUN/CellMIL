@@ -1,0 +1,23 @@
+/* Custom CSS for green titles */
+
+/* h1 {
+    color: #4dffab !important;
+}
+
+h2 {
+    color: #4dffab !important;
+}
+
+h3 {
+    color: #4dffab !important;
+}
+
+h4,
+h5,
+h6 {
+    color: #4dffab !important;
+} */
+
+.highlight > pre {
+    background-color: rgba(65, 217, 255, 0.164) !important;
+}

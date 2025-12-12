@@ -1,0 +1,10 @@
+# Sphinx build directory
+build/
+
+# Auto-generated API documentation
+source/_autosummary/
+
+# Temporary files
+.DS_Store
+*.pyc
+__pycache__/
