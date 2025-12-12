@@ -56,8 +56,9 @@ autodoc_default_options: dict[str, Any] = {
 }
 autodoc_mock_imports = [
     "torch_cluster",
-    "radiomics"
-    "SimpleITK"
+    "radiomics",
+    "SimpleITK",
+    "cucim"
 ]
 
 
