@@ -55,7 +55,8 @@ autodoc_default_options: dict[str, Any] = {
     "special-members": "__init__",
 }
 autodoc_mock_imports = [
-    "torch_cluster"
+    "torch_cluster",
+    "radiomics"
 ]
 
 
