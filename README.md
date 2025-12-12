@@ -244,13 +244,12 @@ The `create_dataset` command requires an Excel file (`.xlsx`) with slide metadat
 > **Note:** The pipeline currently only supports **40x magnification**. For details on training with labels and other configurations, please refer to the [documentation](https://camilosinningun.github.io/CellMIL/).
 
 Example:
-```
+
 | PATH                           |
 |--------------------------------|
 | /data/slides/C3L-00001-21.svs  |
 | /data/slides/C3L-00001-26.svs  |
-```
-```
+
 
 ### Output Directory Structure
 
