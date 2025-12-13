@@ -56,8 +56,8 @@ PyTorch and PyTorch Geometric libraries must be installed separately based on yo
 Example for CUDA 11.8:
 
 ```bash
-# PyTorch
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+# PyTorch 2.7.1
+pip install torch==2.7.1 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
 # PyTorch Geometric and extensions
 pip install torch-geometric
