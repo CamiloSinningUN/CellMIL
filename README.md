@@ -112,6 +112,8 @@ cd CellMIL
 
 #### 2. Create Conda Environment
 
+> **Note:** This step can be skipped if you already have Python 3.10 and Poetry installed on your machine.
+
 If you don't have conda installed, follow the instructions [here](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html).
 
 ```bash
