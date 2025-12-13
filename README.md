@@ -10,29 +10,46 @@ A flexible and modular framework for cell-level feature extraction and interacti
 
 ## Table of Contents
 
-- [Installation](#installation)
-  - [Quick Install (Package Users)](#quick-install-package-users)
-  - [Development Setup](#development-setup)
-  - [Common Issues](#common-issues)
-- [CLI Tools](#cli-tools)
-  - [Data Preparation](#data-preparation)
-  - [Cell Segmentation](#cell-segmentation)
-  - [Create Graph](#create-graph)
-  - [Feature Extraction](#feature-extraction)
-  - [Feature Visualization](#feature-visualization)
-  - [Create Dataset](#create-dataset)
-- [Technical Details](#technical-details)
-  - [Supported Input Formats](#supported-input-formats)
-  - [Metadata Excel Format](#metadata-excel-format)
-  - [Output Directory Structure](#output-directory-structure)
-  - [Resource Requirements](#resource-requirements)
-- [Development](#development)
-  - [Project Structure](#project-structure)
-  - [Running Tests](#running-tests)
-  - [Building Documentation](#building-documentation)
-  - [Contributing](#contributing)
-- [References](#references)
-- [License](#license)
+- [CellMIL](#cellmil)
+  - [Table of Contents](#table-of-contents)
+  - [Installation](#installation)
+    - [Quick Install (Package Users)](#quick-install-package-users)
+      - [1. Install PyTorch](#1-install-pytorch)
+      - [3. 🚧 Install CellMIL 🚧](#3--install-cellmil-)
+      - [4. Install Additional Dependencies](#4-install-additional-dependencies)
+    - [Development Setup](#development-setup)
+      - [1. Clone the Repository](#1-clone-the-repository)
+      - [2. Create Conda Environment](#2-create-conda-environment)
+      - [3. Install Python Dependencies](#3-install-python-dependencies)
+      - [5. Install Additional Dependencies](#5-install-additional-dependencies)
+      - [Windows DataLoader Workers](#windows-dataloader-workers)
+      - [PyTorch Geometric Libraries](#pytorch-geometric-libraries)
+      - [Pyradiomics Installation](#pyradiomics-installation)
+  - [CLI Tools](#cli-tools)
+    - [Data Preparation](#data-preparation)
+    - [Cell segmentation](#cell-segmentation)
+    - [Create graph](#create-graph)
+    - [Feature extraction](#feature-extraction)
+      - [Morphological](#morphological)
+      - [Topological](#topological)
+      - [Patch embeddings](#patch-embeddings)
+    - [Feature visualization](#feature-visualization)
+    - [Create dataset](#create-dataset)
+  - [Technical Details](#technical-details)
+    - [Supported Input Formats](#supported-input-formats)
+    - [Metadata Excel Format](#metadata-excel-format)
+    - [Output Directory Structure](#output-directory-structure)
+    - [Resource Requirements](#resource-requirements)
+  - [Development](#development)
+    - [Project Structure](#project-structure)
+    - [Running Tests](#running-tests)
+    - [Building Documentation](#building-documentation)
+  - [References](#references)
+    - [Multiple Instance Learning Models](#multiple-instance-learning-models)
+    - [Cell Segmentation Models](#cell-segmentation-models)
+    - [Tools and Frameworks](#tools-and-frameworks)
+    - [Others](#others)
+  - [Contributions](#contributions)
 
 ## Installation
 
@@ -54,7 +71,7 @@ Example for CPU-only:
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 ```
 
-#### 2. Install PyTorch Geometric
+<!-- #### 2. Install PyTorch Geometric
 
 Visit [PyG installation guide](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html) for the correct command matching your PyTorch/CUDA version.
 
@@ -62,7 +79,7 @@ Example for PyTorch 2.7 + CUDA 12.1:
 ```bash
 pip install torch-geometric
 pip install pyg_lib torch_scatter torch_sparse torch_cluster -f https://data.pyg.org/whl/torch-2.7.0+cu121.html
-```
+``` -->
 
 #### 3. 🚧 Install CellMIL 🚧
 
@@ -111,26 +128,6 @@ conda activate cellmil
 poetry install
 ```
 
-#### 4. Install PyTorch and PyG Libraries
-
-PyTorch and PyTorch Geometric must be installed separately based on your system's CUDA version:
-
-1. **PyTorch**: [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)
-2. **PyTorch Geometric**: [https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html)
-
-Example for CUDA 12.1:
-
-```bash
-# PyTorch
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-
-# PyTorch Geometric and extensions
-pip install torch-geometric
-pip install pyg_lib torch_scatter torch_sparse torch_cluster -f https://data.pyg.org/whl/torch-2.7.0+cu121.html
-```
-
-> **Note:** Replace `cu121` with your CUDA version (e.g., `cu118` for CUDA 11.8, or `cpu` for CPU-only).
-
 #### 5. Install Additional Dependencies
 
 ```bash
@@ -153,12 +150,32 @@ If you encounter errors or duplicate runs, Windows may have issues with `num_wor
 
 Errors with `torch-sparse`, `torch-scatter`, or `pyg-lib` may occur due to pre-built binary incompatibilities.
 
+> **Note:** This is only necessary if your GPU has a CUDA version older than 11.8 or you are experiencing specific errors. Otherwise, the default installation should work fine.
+
 **Solution:** Compile the libraries from source:
 
 ```bash
 pip install --no-binary :all: torch-sparse
 pip install --no-binary :all: torch-scatter
 pip install --no-binary :all: pyg-lib
+```
+
+#### Pyradiomics Installation
+
+When installing `pyradiomics` with pip, you may encounter build errors like:
+
+```
+ModuleNotFoundError: No module named 'numpy'
+ModuleNotFoundError: No module named 'versioneer'
+```
+
+This happens because pyradiomics has undeclared build dependencies, and pip's build isolation creates a clean environment without access to your installed packages.
+
+**Solution:** Install the missing build dependencies first, then install pyradiomics with `--no-build-isolation`:
+
+```bash
+pip install versioneer cython
+pip install pyradiomics --no-build-isolation
 ```
 
 </details>
