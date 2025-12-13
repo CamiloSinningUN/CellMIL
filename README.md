@@ -10,7 +10,9 @@ A flexible and modular framework for cell-level feature extraction and interacti
 
 ## Table of Contents
 
-- [Getting Started](#getting-started)
+- [Installation](#installation)
+  - [Quick Install (Package Users)](#quick-install-package-users)
+  - [Development Setup](#development-setup)
   - [Common Issues](#common-issues)
 - [CLI Tools](#cli-tools)
   - [Data Preparation](#data-preparation)
@@ -32,11 +34,68 @@ A flexible and modular framework for cell-level feature extraction and interacti
 - [References](#references)
 - [License](#license)
 
-## Getting started
+## Installation
 
-If you don't have conda installed, please follow the instructions [here](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html).
+### Quick Install (Package Users)
 
-If you already have poetry installed, you can skip this step.
+For users who want to use CellMIL as a package without modifying the source code.
+
+#### 1. Install PyTorch
+
+First, install PyTorch based on your system's CUDA version. Visit [pytorch.org](https://pytorch.org/get-started/locally/) to get the correct command.
+
+Example for CUDA 12.1:
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+```
+
+Example for CPU-only:
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+```
+
+#### 2. Install PyTorch Geometric
+
+Visit [PyG installation guide](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html) for the correct command matching your PyTorch/CUDA version.
+
+Example for PyTorch 2.7 + CUDA 12.1:
+```bash
+pip install torch-geometric
+pip install pyg_lib torch_scatter torch_sparse torch_cluster -f https://data.pyg.org/whl/torch-2.7.0+cu121.html
+```
+
+#### 3. 🚧 Install CellMIL 🚧
+
+```bash
+pip install cellmil
+```
+
+#### 4. Install Additional Dependencies
+
+```bash
+# For radiomics feature extraction
+pip install pyradiomics
+
+# For GPU-accelerated image loading (optional)
+# See: https://docs.rapids.ai/api/cucim/stable/
+```
+
+---
+
+### Development Setup
+
+For users who want to modify the code or contribute to the project. This is the **recommended** approach for researchers and developers.
+
+#### 1. Clone the Repository
+
+```bash
+git clone https://github.com/CamiloSinningUN/CellMIL.git
+cd CellMIL
+```
+
+#### 2. Create Conda Environment
+
+If you don't have conda installed, follow the instructions [here](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html).
 
 ```bash
 # Create environment
@@ -46,43 +105,40 @@ conda env create -f environment.yml
 conda activate cellmil
 ```
 
-### Install PyTorch and PyG Libraries
-
-PyTorch and PyTorch Geometric libraries must be installed separately based on your system's CUDA version. Visit the official installation pages to get the correct commands:
-
-1. **PyTorch**: [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)
-2. **PyTorch Geometric**: [https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html)
-
-Example for CUDA 11.8:
-
-```bash
-# PyTorch 2.7.1
-pip install torch==2.7.1 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-
-# PyTorch Geometric and extensions
-pip install torch-geometric
-pip install pyg_lib torch_scatter torch_sparse torch_cluster -f https://data.pyg.org/whl/torch-2.7.0+cu118.html
-```
-
-> **Note:** Replace `cu118` with your CUDA version (e.g., `cu121` for CUDA 12.1, or `cpu` for CPU-only).
-
-### Install Python Dependencies
-
-Install the remaining dependencies with poetry:
+#### 3. Install Python Dependencies
 
 ```bash
 poetry install
 ```
 
-### Install Pyradiomics
+#### 4. Install PyTorch and PyG Libraries
 
-Pyradiomics is incompatible with Poetry's dependency resolver. Install it manually after running `poetry install`:
+PyTorch and PyTorch Geometric must be installed separately based on your system's CUDA version:
+
+1. **PyTorch**: [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)
+2. **PyTorch Geometric**: [https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html)
+
+Example for CUDA 12.1:
 
 ```bash
+# PyTorch
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+
+# PyTorch Geometric and extensions
+pip install torch-geometric
+pip install pyg_lib torch_scatter torch_sparse torch_cluster -f https://data.pyg.org/whl/torch-2.7.0+cu121.html
+```
+
+> **Note:** Replace `cu121` with your CUDA version (e.g., `cu118` for CUDA 11.8, or `cpu` for CPU-only).
+
+#### 5. Install Additional Dependencies
+
+```bash
+# Pyradiomics (incompatible with Poetry resolver)
 pip install pyradiomics
 ```
 
-> **Optional dependencies:** Follow the instructions to install cucim from their [official documentation](https://docs.rapids.ai/api/cucim/stable/)
+> **Optional:** Install cucim for GPU-accelerated image loading from their [official documentation](https://docs.rapids.ai/api/cucim/stable/)
 
 <details>
 <summary><h3>Common Issues</h3></summary>
