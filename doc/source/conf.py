@@ -92,7 +92,7 @@ html_theme_options: dict[str, Any] = {
     "color_mode": "light",
     "accent_color": "blue",
     "globaltoc_expand_depth": 1,
-    "github_url": "https://github.com/CamiloSinningUN/Thesis",
+    "github_url": "https://github.com/CamiloSinningUN/CellMIL",
     "nav_links": [
         {
             "title": "Installation",

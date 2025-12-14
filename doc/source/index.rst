@@ -27,47 +27,77 @@ Features
 Quick Start
 ===========
 
-Installation (Linux)
-------------
+Quick Install (Package Users)
+------------------------------
+
+For users who want to use CellMIL as a package without modifying the source code.
+
+**🚧 Install CellMIL 🚧**
 
 .. code-block:: bash
-   
+
+   pip install cellmil
+
+.. note::
+
+   This will automatically install PyTorch and PyTorch Geometric with CUDA 11.8 support. If you need a different CUDA version, install PyTorch and PyTorch Geometric manually first from `pytorch.org <https://pytorch.org/get-started/locally/>`_ and `PyG installation guide <https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html>`_, then install CellMIL.
+
+**Install Additional Dependencies**
+
+.. code-block:: bash
+
+   # For radiomics feature extraction
+   pip install pyradiomics
+
+   # For GPU-accelerated image loading (optional)
+   # See: https://docs.rapids.ai/api/cucim/stable/
+
+Development Setup
+-----------------
+
+For users who want to modify the code or contribute to the project. This is the **recommended** approach for researchers and developers.
+
+**1. Clone the Repository**
+
+.. code-block:: bash
+
+   git clone https://github.com/CamiloSinningUN/CellMIL.git
+   cd CellMIL
+
+**2. Create Conda Environment**
+
+.. note::
+
+   This step can be skipped if you already have Python 3.10 and Poetry installed on your machine.
+
+.. code-block:: bash
+
    # Create environment
-   conda env create -f environments/environment_cellmil.yml
+   conda env create -f environment.yml
 
    # Activate environment
    conda activate cellmil
 
-   # Install python dependencies
-   poetry install
-
-   # Install Pytorch Geomatric Dependencies (Issues could arise when installing)
-   pip install --no-binary :all: torch-cluster torch-scatter pyg-lib
-
-
-Installation (Windows)
-------------
+**3. Install Python Dependencies**
 
 .. code-block:: bash
-   
-   # Create environment
-   conda env create -f environments/environment_cellmil_win.yml
 
-   # Activate environment
-   conda activate cellmil_win
-
-   # Install python dependencies
    poetry install
-
-   # Install pyradiomics (Error Poetry)
-   pip install pyradiomics
-
-   # Install Pytorch Geomatric Dependencies (Issues could arise when installing)
-   pip install --no-binary :all: torch-cluster torch-scatter pyg-lib
 
 .. note::
 
-   On Windows you may encounter errors or duplicated runs due to DataLoader num_workers. Comment out all num_workers arguments (or set them to 0) to mitigate this.
+   Poetry will install PyTorch with CUDA 11.8 support. If you have a GPU with an older CUDA version, install PyTorch manually first before running ``poetry install``. Visit `pytorch.org <https://pytorch.org/get-started/locally/>`_ to get the correct command for your system.
+
+**4. Install Additional Dependencies**
+
+.. code-block:: bash
+
+   # Pyradiomics (incompatible with Poetry resolver)
+   pip install pyradiomics
+
+.. note::
+
+   **Optional:** Install cucim for GPU-accelerated image loading from their `official documentation <https://docs.rapids.ai/api/cucim/stable/>`_
 
 Basic Usage
 -----------

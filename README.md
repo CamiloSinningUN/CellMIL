@@ -57,41 +57,13 @@ A flexible and modular framework for cell-level feature extraction and interacti
 
 For users who want to use CellMIL as a package without modifying the source code.
 
-#### 1. Install PyTorch
-
-First, install PyTorch based on your system's CUDA version. Visit [pytorch.org](https://pytorch.org/get-started/locally/) to get the correct command.
-
-Example for CUDA 12.1:
-```bash
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-```
-
-Example for CPU-only:
-```bash
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-```
-
-<!-- #### 2. Install PyTorch Geometric
-
-Visit [PyG installation guide](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html) for the correct command matching your PyTorch/CUDA version.
-
-Example for PyTorch 2.7 + CUDA 12.1:
-```bash
-pip install torch-geometric
-pip install pyg_lib torch_scatter torch_sparse torch_cluster -f https://data.pyg.org/whl/torch-2.7.0+cu121.html
-``` -->
-
-#### 3. 🚧 Install CellMIL 🚧
+#### 🚧 Install CellMIL 🚧
 
 ```bash
 pip install cellmil
 ```
 
-#### 4. Install Additional Dependencies
-
-```bash
-# For radiomics feature extraction
-pip install pyradiomics
+> **Note:** This will automatically install PyTorch and PyTorch Geometric with CUDA 11.8 support. If you need a different CUDA version, install PyTorch and PyTorch Geometric manually first from [pytorch.org](https://pytorch.org/get-started/locally/) and [PyG installation guide](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html), then install CellMIL.
 
 # For GPU-accelerated image loading (optional)
 # See: https://docs.rapids.ai/api/cucim/stable/
@@ -130,7 +102,9 @@ conda activate cellmil
 poetry install
 ```
 
-#### 5. Install Additional Dependencies
+> **Note:** Poetry will install PyTorch with CUDA 11.8 support. If you have a GPU with an older CUDA version, install PyTorch manually. Visit [pytorch.org](https://pytorch.org/get-started/locally/) to get the correct command for your system.
+
+#### 4. Install Additional Dependencies
 
 ```bash
 # Pyradiomics (incompatible with Poetry resolver)

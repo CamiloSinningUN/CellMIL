@@ -2,76 +2,91 @@
 Installation
 ============
 
-The following instructions will guide you through the installation process specifically for linux based systems.
-
 System Requirements
 ===================
 
 - CUDA-compatible GPU (recommended for deep learning models)
-- 8+ GB RAM recommended for large WSI processing
-- Conda package manager
+- Conda package manager or Poetry (for development setup)
 
-Prerequisites
-=============
+Quick Install (Package Users)
+==============================
 
-Before installing, ensure you have the following:
+For users who want to use CellMIL as a package without modifying the source code.
 
-1. **Conda Environment Manager**
-   
-   Download and install `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_ or `Anaconda <https://www.anaconda.com/products/distribution>`_.
+🚧 Install CellMIL 🚧
+---------------------
 
-2. **CUDA Toolkit** (Optional but recommended)
-   
-   For GPU acceleration, install the appropriate CUDA toolkit version for your system from the `NVIDIA website <https://developer.nvidia.com/cuda-toolkit>`_.
+.. code-block:: bash
 
-Installation Steps
-==================
+   pip install cellmil
+
+.. note::
+
+   This will automatically install PyTorch and PyTorch Geometric with CUDA 11.8 support. If you need a different CUDA version, install PyTorch and PyTorch Geometric manually first from `pytorch.org <https://pytorch.org/get-started/locally/>`_ and `PyG installation guide <https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html>`_, then install CellMIL.
+
+Install Additional Dependencies
+--------------------------------
+
+.. code-block:: bash
+
+   # For radiomics feature extraction
+   pip install pyradiomics
+
+   # For GPU-accelerated image loading (optional)
+   # See: https://docs.rapids.ai/api/cucim/stable/
+
+Development Setup
+=================
+
+For users who want to modify the code or contribute to the project. This is the **recommended** approach for researchers and developers.
 
 1. Clone the Repository
 -----------------------
 
 .. code-block:: bash
 
-   git clone https://github.com/CamiloSinningUN/Thesis.git
-   cd Thesis
+   git clone https://github.com/CamiloSinningUN/CellMIL.git
+   cd CellMIL
 
-2. Create Conda Environment (Linux)
-----------------------------
+2. Create Conda Environment
+---------------------------
+
+.. note::
+
+   This step can be skipped if you already have Python 3.10 and Poetry installed on your machine.
+
+If you don't have conda installed, follow the instructions from the `official documentation <https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html>`_.
 
 .. code-block:: bash
 
-   # Create environment from the provided environment file
-   conda env create -f environments/environment_cellmil.yml
+   # Create environment
+   conda env create -f environment.yml
 
-   # Activate the environment
+   # Activate environment
    conda activate cellmil
-
-2. Create Conda Environment (Windows)
-----------------------------
-
-.. code-block:: bash
-
-   # Create environment from the provided environment file
-   conda env create -f environments/environment_cellmil_win.yml
-
-   # Activate the environment
-   conda activate cellmil_win
 
 3. Install Python Dependencies
 ------------------------------
 
 .. code-block:: bash
 
-   # Install all Python dependencies using Poetry
    poetry install
 
-1. Install Pytorch Geometric Dependencies
-------------------------------
+.. note::
+
+   Poetry will install PyTorch with CUDA 11.8 support. If you have a GPU with an older CUDA version, install PyTorch manually first before running ``poetry install``. Visit `pytorch.org <https://pytorch.org/get-started/locally/>`_ to get the correct command for your system.
+
+4. Install Additional Dependencies
+----------------------------------
 
 .. code-block:: bash
 
-   # Install Pytorch Geomatric Dependencies (Issues could arise when installing)
-   pip install --no-binary :all: torch-cluster torch-scatter pyg-lib 
+   # Pyradiomics (incompatible with Poetry resolver)
+   pip install pyradiomics
+
+.. note::
+
+   **Optional:** Install cucim for GPU-accelerated image loading from their `official documentation <https://docs.rapids.ai/api/cucim/stable/>`_
 
 Verification
 ============
@@ -85,14 +100,6 @@ To verify that the installation was successful, try running:
 
 You should see help messages for each command without any errors.
 
-Environment Files
-=================
-
-The project includes several environment files for different use cases:
-
-- ``environment_cellmil.yml`` - Main environment for this package
-- The other environment files located in the `environments/` directory are for specific experiments or configurations.
-
 GPU Support
 ===========
 
@@ -100,7 +107,7 @@ For optimal performance, especially when working with deep learning models, GPU 
 
 1. **NVIDIA GPU**: Ensure you have a CUDA-compatible NVIDIA GPU
 2. **CUDA Drivers**: Install the latest NVIDIA drivers
-3. **PyTorch with CUDA**: The environment file includes PyTorch with CUDA support
+3. **PyTorch with CUDA**: Install PyTorch with the correct CUDA version
 
 To verify GPU support:
 
@@ -114,6 +121,46 @@ Troubleshooting
 
 Common Issues
 -------------
+
+**Windows DataLoader Workers**
+
+If you encounter errors or duplicate runs, Windows may have issues with ``num_workers`` in DataLoader.
+
+**Solution:** Comment out all ``num_workers`` arguments in the codebase.
+
+**PyTorch Geometric Libraries**
+
+Errors with ``torch-sparse``, ``torch-scatter``, or ``pyg-lib`` may occur due to pre-built binary incompatibilities.
+
+.. note::
+
+   This is only necessary if your GPU has a CUDA version older than 11.8 or you are experiencing specific errors. Otherwise, the default installation should work fine.
+
+**Solution:** Compile the libraries from source:
+
+.. code-block:: bash
+
+   pip install --no-binary :all: torch-sparse
+   pip install --no-binary :all: torch-scatter
+   pip install --no-binary :all: pyg-lib
+
+**Pyradiomics Installation**
+
+When installing ``pyradiomics`` with pip, you may encounter build errors like:
+
+.. code-block:: text
+
+   ModuleNotFoundError: No module named 'numpy'
+   ModuleNotFoundError: No module named 'versioneer'
+
+This happens because pyradiomics has undeclared build dependencies, and pip's build isolation creates a clean environment without access to your installed packages.
+
+**Solution:** Install the missing build dependencies first, then install pyradiomics with ``--no-build-isolation``:
+
+.. code-block:: bash
+
+   pip install versioneer cython
+   pip install pyradiomics --no-build-isolation
 
 **CUDA Issues**
 
@@ -139,5 +186,5 @@ If you encounter package conflicts:
 
    # Remove and recreate the environment
    conda env remove -n cellmil
-   conda env create -f environments/environment_cellmil.yml
+   conda env create -f environment.yml
 
