@@ -420,6 +420,8 @@ This project builds upon several key research papers and tools:
   Wang, Shidan et al., Nature Communications, 2023  
   [DOI: 10.1038/s41467-023-43172-6](https://doi.org/10.1038/s41467-023-43172-6)
 
+- **Pyradiomics** van Griethuysen, J. J. M., Fedorov, A., Parmar, C., Hosny, A., Aucoin, N., Narayan, V., Beets-Tan, R. G. H., Fillion-Robin, J. C., Pieper, S., Aerts, H. J. W. L. (2017). Computational Radiomics System to Decode the Radiographic Phenotype. Cancer Research, 77(21), e104–e107. https://doi.org/10.1158/0008-5472.CAN-17-0339
+
 ## Contributions
 
 * [Camilo José Sinning López](https://github.com/CamiloSinningUN)

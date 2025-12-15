@@ -27,7 +27,7 @@ Feature extraction bridges the gap between visual cell segmentation and quantita
 Available Extractors
 ====================
 
-PyRadiomics
+PyRadiomics [#pyradiomics]_
 -----------
 
 Comprehensive radiomics feature extraction based on the PyRadiomics library **(102 features)**.
@@ -51,6 +51,9 @@ Comprehensive radiomics feature extraction based on the PyRadiomics library **(1
    - **GLRLM**: Run-length patterns  
    - **GLSZM**: Size zone patterns
    - **NGTDM**: Neighboring tone differences
+   - **GLDM**: Dependence patterns
+
+.. [#pyradiomics] van Griethuysen, J. J. M., Fedorov, A., Parmar, C., Hosny, A., Aucoin, N., Narayan, V., Beets-Tan, R. G. H., Fillion-Robin, J. C., Pieper, S., Aerts, H. J. W. L. (2017). Computational Radiomics System to Decode the Radiographic Phenotype. Cancer Research, 77(21), e104–e107. https://doi.org/10.1158/0008-5472.CAN-17-0339
 
 Morphometrics
 -------------------
