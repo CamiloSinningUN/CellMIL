@@ -977,6 +977,7 @@ class FeatureVisualizer:
             yaxis_title="Features",
             width=800,
             height=600,
+            font=dict(family="Montserrat"),
         )
 
         return fig
@@ -998,6 +999,7 @@ class FeatureVisualizer:
             title=f"Distribution of {feature_name}",
             xaxis_title=feature_name,
             yaxis_title="Frequency",
+            font=dict(family="Montserrat"),
         )
 
         return fig
@@ -1045,6 +1047,7 @@ class FeatureVisualizer:
             title=f"PCA Visualization{sample_info} (Explained Variance: PC1={pca.explained_variance_ratio_[0]:.2%}, PC2={pca.explained_variance_ratio_[1]:.2%})",  # type: ignore
             xaxis_title=f"PC1 ({pca.explained_variance_ratio_[0]:.2%})",  # type: ignore
             yaxis_title=f"PC2 ({pca.explained_variance_ratio_[1]:.2%})",  # type: ignore
+            font=dict(family="Montserrat"),
         )
 
         return fig
@@ -1091,6 +1094,7 @@ class FeatureVisualizer:
             title=f"t-SNE Visualization{sample_info}<br>(perplexity={actual_perplexity})",
             xaxis_title="t-SNE Component 1",
             yaxis_title="t-SNE Component 2",
+            font=dict(family="Montserrat"),
         )
 
         return fig
@@ -1155,7 +1159,9 @@ class FeatureVisualizer:
             ]
         )
 
-        fig.update_layout(title="First-Order Statistics")  # type: ignore
+        fig.update_layout(
+            title="First-Order Statistics", font=dict(family="Montserrat")
+        )  # type: ignore
 
         return fig
 
@@ -1265,6 +1271,7 @@ class FeatureVisualizer:
             ),
             hovermode="closest",
             height=800,
+            font=dict(family="Montserrat"),
         )
 
         # Update x and y axes
@@ -1477,6 +1484,7 @@ class FeatureVisualizer:
             hovermode="closest",
             width=900,
             height=700,
+            font=dict(family="Montserrat"),
         )
 
         return fig
@@ -1547,6 +1555,7 @@ class FeatureVisualizer:
             hovermode="closest",
             width=900,
             height=700,
+            font=dict(family="Montserrat"),
         )
 
         return fig
@@ -1597,6 +1606,7 @@ class FeatureVisualizer:
             barmode="group",
             legend=dict(orientation="v", yanchor="top", y=1, xanchor="right", x=1),
             height=600,
+            font=dict(family="Montserrat"),
         )
 
         return fig
@@ -1702,6 +1712,7 @@ class FeatureVisualizer:
             ),
             hovermode="closest",
             height=800,
+            font=dict(family="Montserrat"),
         )
 
         fig.update_xaxes(title_text=feature_name, row=1, col=1, range=x_range)  # type: ignore
