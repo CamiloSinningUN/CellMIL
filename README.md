@@ -65,9 +65,7 @@ pip install cellmil
 
 > **Note:** This will automatically install PyTorch and PyTorch Geometric with CUDA 11.8 support. If you need a different CUDA version, install PyTorch and PyTorch Geometric manually first from [pytorch.org](https://pytorch.org/get-started/locally/) and [PyG installation guide](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html), then install CellMIL.
 
-# For GPU-accelerated image loading (optional)
-# See: https://docs.rapids.ai/api/cucim/stable/
-```
+> **Optional:** Install cucim for GPU-accelerated image loading from their [official documentation](https://docs.rapids.ai/api/cucim/stable/)
 
 ---
 
