@@ -57,6 +57,9 @@ dependencies = [
     "lifelines (>=0.30.0,<0.31.0)"
 ]
 
+[tool.poetry]
+packages = [{ include = "cellmil", from = "." }]
+
 [tool.poetry.scripts]
 patch_extraction = "cellmil.cli.patch_extraction:main"
 cell_segmentation = "cellmil.cli.cell_segmentation:main"

@@ -163,7 +163,7 @@ Every step of the pipeline can be executed using the provided CLI tools. Bellow 
 The project includes a CLI tool for preparing WSI (Whole Slide Image) data for analysis a.k.a. Extracting the patches:
 
 ```bash
-poetry run patch_extraction --output_path ./results   --wsi_path ./data/C3L-00001-21.svs   --patch_size 256   --patch_overlap 6.25   --target_mag 40.0
+patch_extraction --output_path ./results   --wsi_path ./data/C3L-00001-21.svs   --patch_size 256   --patch_overlap 6.25   --target_mag 40.0
 
 ```
 
@@ -172,7 +172,7 @@ poetry run patch_extraction --output_path ./results   --wsi_path ./data/C3L-0000
 After preparing the data you can run cell segmentation on the slide using the follwing cli tool:
 
 ```bash
-poetry run cell_segmentation --model cellvit --gpu 0  --wsi_path ./data/C3L-00001-21.svs   --patched_slide_path ./results/C3L-00001-21
+cell_segmentation --model cellvit --gpu 0  --wsi_path ./data/C3L-00001-21.svs   --patched_slide_path ./results/C3L-00001-21
 
 ```
 
@@ -188,7 +188,7 @@ The results of the segmentation will be stored in the `patched_slide_path` folde
 After extracting the cell instances from the slide:
 
 ```bash
-poetry run graph_creation  --method knn --gpu 0 --patched_slide_path ./results/C3L-00001-21  --segmentation_model cellvit
+graph_creation  --method knn --gpu 0 --patched_slide_path ./results/C3L-00001-21  --segmentation_model cellvit
 
 ```
 
@@ -208,7 +208,7 @@ The results of the graph creation will be stored in the `patched_slide_path` fol
 After extracting the cell instances from the slide:
 
 ```bash
-poetry run feature_extraction  --extractor pyradiomics_gray --wsi_path ./data/C3L-00001-21.svs  --patched_slide_path ./results/C3L-00001-21  --segmentation_model cellvit
+feature_extraction  --extractor pyradiomics_gray --wsi_path ./data/C3L-00001-21.svs  --patched_slide_path ./results/C3L-00001-21  --segmentation_model cellvit
 ```
 
 Extractor options:
@@ -223,7 +223,7 @@ Extractor options:
 After extracting the cell instances from the slide and creating a graph with one of the available methods:
 
 ```bash
-poetry run feature_extraction  --extractor connectivity --patched_slide_path ./results/C3L-00001-21  --segmentation_model cellvit --graph_method knn
+feature_extraction  --extractor connectivity --patched_slide_path ./results/C3L-00001-21  --segmentation_model cellvit --graph_method knn
 ```
 
 Extractor options:
@@ -236,7 +236,7 @@ Extractor options:
 After extracting the patches:
 
 ```bash
-poetry run feature_extraction  --extractor resnet50 --patched_slide_path ./results/C3L-00001-21
+feature_extraction  --extractor resnet50 --patched_slide_path ./results/C3L-00001-21
 ```
 
 Extractor options:
@@ -248,7 +248,7 @@ Extractor options:
 After extracting the features we can run the following command to have a visualization of the features extracted:
 
 ```bash
-poetry run vis_features --dataset ./results
+vis_features --dataset ./results
 ```
 
 <!-- ### Statistics Print
@@ -256,7 +256,7 @@ poetry run vis_features --dataset ./results
 After doing experiments this command will generate a report with statistic justification on the choices made in this pipeline:
 
 ```bash
-poetry run stats_print --metric f1 --team camilosinning-cs-politecnico-di-milano --projects 'CELLMIL (K-Fold)' 'CELLMIL (K-Fold Cell Stratified)'
+stats_print --metric f1 --team camilosinning-cs-politecnico-di-milano --projects 'CELLMIL (K-Fold)' 'CELLMIL (K-Fold Cell Stratified)'
 ```
 
 Metric options:
@@ -271,7 +271,7 @@ Metric options:
 This command takes the metadata excel and process all the slides present on it to then use them to train the MIL model.
 
 ```bash
-poetry run create_dataset --excel_path ./data/metadata.xlsx --output_path ./results --gpu 0 --segmentation_models cellvit hovernet cellpose_sam --extractors handcrafted topology_measures --graph_methods knn radius
+create_dataset --excel_path ./data/metadata.xlsx --output_path ./results --gpu 0 --segmentation_models cellvit hovernet cellpose_sam --extractors handcrafted topology_measures --graph_methods knn radius
 ```
 
 ## Technical Details
@@ -357,7 +357,7 @@ The project uses `pytest` for testing. Tests are located in `cellmil/__tests__/`
 
 ```bash
 # Run all tests
-poetry run pytest
+pytest
 ```
 
 Test reports are generated in `test_reports/report.html`.
