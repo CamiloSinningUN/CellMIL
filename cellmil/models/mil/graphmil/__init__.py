@@ -12,6 +12,8 @@ from torch_geometric.loader import NeighborLoader  # type: ignore
 from .gnn import GNN, GAT, EGNN, SAGE, CHIMERA, GATv2, SmallWorld, SGFormer
 from .pool import GlobalPooling_Classifier, CLAM, Standard, Attention, Mean_MLP
 from ..utils import AEM
+from cellmil.utils.train.losses import NegativeLogLikelihoodSurvLoss
+from cellmil.utils.train.metrics import ConcordanceIndex, BrierScore
 
 __all__ = [
     "GNN",
@@ -26,6 +28,7 @@ __all__ = [
     "Attention",
     "Mean_MLP",
     "LitGraphMIL",
+    "LitSurvGraphMIL",
     "SmallWorld",
     "SGFormer",
 ]
@@ -170,8 +173,8 @@ class LitGraphMIL(Pl.LightningModule):
 
         checkpoint = torch.load(
             checkpoint_path,
-            map_location=map_location, # type: ignore
-            weights_only=False,  
+            map_location=map_location,  # type: ignore
+            weights_only=False,
         )
         hparams = checkpoint.get("hyper_parameters", {})
 
@@ -350,11 +353,11 @@ class LitGraphMIL(Pl.LightningModule):
     def _subsample_graph(self, data: Data, subsampling: float) -> Data:
         """
         Sample subgraph using NeighborLoader to preserve local graph structure.
-        
+
         This method uses k-hop neighborhood sampling which preserves the local
         connectivity around seed nodes, providing better context for GNN message
         passing compared to random node sampling.
-        
+
         Note: This method is designed to work on CPU before GPU transfer when called
         from on_before_batch_transfer hook, saving GPU memory and transfer bandwidth.
 
@@ -365,16 +368,16 @@ class LitGraphMIL(Pl.LightningModule):
 
         Returns:
             Data: Sampled subgraph with k-hop neighborhoods around seed nodes.
-            
+
         Note:
             This method requires either 'pyg-lib' or 'torch-sparse' to be installed.
             Install with: pip install pyg-lib torch-sparse -f https://data.pyg.org/whl/torch-{TORCH_VERSION}+{CUDA_VERSION}.html
         """
-        
+
         num_nodes = data.num_nodes
         if num_nodes is None:
             raise ValueError("Data object must have num_nodes attribute")
-        
+
         # Determine number of seed nodes to sample based on subsampling parameter
         if 0 < subsampling < 1.0:
             # Treat as percentage
@@ -384,27 +387,27 @@ class LitGraphMIL(Pl.LightningModule):
             num_sample_nodes = min(int(subsampling), num_nodes)
         else:
             raise ValueError(f"Invalid subsampling value: {subsampling}")
-        
+
         # Determine number of seed nodes to sample
         # Always sample on CPU to avoid unnecessary GPU operations
         if num_sample_nodes >= num_nodes:
             # If requesting more nodes than available, use all nodes
-            input_nodes = torch.arange(num_nodes, device='cpu')
+            input_nodes = torch.arange(num_nodes, device="cpu")
         else:
             # Randomly select seed nodes
-            input_nodes = torch.randperm(num_nodes, device='cpu')[:num_sample_nodes]
-        
+            input_nodes = torch.randperm(num_nodes, device="cpu")[:num_sample_nodes]
+
         # Determine neighbor sampling sizes based on GNN depth
-        gnn_n_layers = self.gnn.n_layers if hasattr(self.gnn, 'n_layers') else 2
+        gnn_n_layers = self.gnn.n_layers if hasattr(self.gnn, "n_layers") else 2
         # Start with more neighbors for first hop, decrease for subsequent hops
         neighbor_sample_sizes = [max(15 - (i * 5), 5) for i in range(gnn_n_layers)]
-        
+
         # Ensure data is on CPU for sampling
         if data.x is not None and data.x.is_cuda:
-            print("-"*50)
+            print("-" * 50)
             print("Data is on GPU, moving to CPU for sampling.")
             data = data.cpu()
-        
+
         # Create NeighborLoader for this single graph
         # Note: We set batch_size to the number of seed nodes to get one subgraph
         loader = NeighborLoader(
@@ -415,13 +418,13 @@ class LitGraphMIL(Pl.LightningModule):
             shuffle=False,  # We already shuffled the input_nodes
             num_workers=0,  # Must be 0 for inline sampling
         )
-        
+
         # Get the sampled subgraph (only one batch since batch_size = len(input_nodes))
         sampled_subgraph = next(iter(loader))
-        
+
         # Preserve the original label
         sampled_subgraph.y = data.y
-        
+
         return sampled_subgraph
 
     def forward(self, data: Data, **kwargs: Any):
@@ -449,11 +452,11 @@ class LitGraphMIL(Pl.LightningModule):
         """
         Hook called before batch is transferred to GPU.
         Performs subsampling on CPU to reduce memory usage and transfer overhead.
-        
+
         Args:
             batch (Data): Input graph data on CPU.
             dataloader_idx (int): Index of the dataloader.
-            
+
         Returns:
             Data: Potentially subsampled graph data (still on CPU).
         """
@@ -461,7 +464,7 @@ class LitGraphMIL(Pl.LightningModule):
         if self.training and self.subsampling != 1.0:
             # Subsample on CPU before GPU transfer
             batch = self._subsample_graph(batch, self.subsampling)
-        
+
         return batch
 
     def _shared_step(
@@ -491,7 +494,7 @@ class LitGraphMIL(Pl.LightningModule):
             raise ValueError(f"Expected label to be a torch.Tensor, got {type(label)}")
 
         # Subsampling now happens in on_before_batch_transfer hook (before GPU transfer)
-        
+
         self.bag_size = cast(int, data.num_nodes)
 
         logits, output_dict = self(data, label=label, instance_eval=True)
@@ -721,3 +724,96 @@ class LitGraphMIL(Pl.LightningModule):
                 attention_weights["pooling_attention"] = pooling_attention
 
         return attention_weights
+
+
+class LitSurvGraphMIL(LitGraphMIL):
+    """
+    Lightning module for Graph-based Multiple Instance Learning with Survival Analysis.
+
+    This class extends LitGraphMIL to support survival analysis tasks using discrete-time
+    hazard models. It uses survival-specific loss functions and metrics like C-index and
+    Brier score.
+
+    Args:
+        gnn (GNN): Graph Neural Network model for node feature extraction.
+        pooling_classifier (GlobalPooling_Classifier): Pooling and classification module.
+        optimizer_cls (type[Optimizer]): Optimizer class.
+        optimizer_kwargs (dict[str, Any]): Optimizer keyword arguments.
+        loss_fn (nn.Module, optional): Loss function. Defaults to NegativeLogLikelihoodSurvLoss.
+        scheduler_cls (type[LRScheduler] | None, optional): Learning rate scheduler class.
+        scheduler_kwargs (dict[str, Any] | None, optional): Scheduler keyword arguments.
+        use_aem (bool, optional): Whether to use AEM regularization. Defaults to False.
+        aem_weight_initial (float, optional): Initial weight for AEM loss. Defaults to 0.0001.
+        aem_weight_final (float, optional): Final weight for AEM loss. Defaults to 0.0.
+        aem_annealing_epochs (int, optional): Number of epochs to anneal AEM weight. Defaults to 25.
+        subsampling (float, optional): Fraction of nodes to keep during training. Defaults to 1.0.
+        **kwargs: Additional keyword arguments.
+    """
+
+    def __init__(
+        self,
+        gnn: GNN,
+        pooling_classifier: GlobalPooling_Classifier,
+        optimizer_cls: type[Optimizer],
+        optimizer_kwargs: dict[str, Any],
+        loss_fn: nn.Module = NegativeLogLikelihoodSurvLoss(),
+        scheduler_cls: type[LRScheduler] | None = None,
+        scheduler_kwargs: dict[str, Any] | None = None,
+        use_aem: bool = False,
+        aem_weight_initial: float = 0.0001,
+        aem_weight_final: float = 0.0,
+        aem_annealing_epochs: int = 25,
+        subsampling: float = 1.0,
+        **kwargs: Any,
+    ):
+        super().__init__(
+            gnn=gnn,
+            pooling_classifier=pooling_classifier,
+            optimizer_cls=optimizer_cls,
+            optimizer_kwargs=optimizer_kwargs,
+            loss_fn=loss_fn,
+            scheduler_cls=scheduler_cls,
+            scheduler_kwargs=scheduler_kwargs,
+            use_aem=use_aem,
+            aem_weight_initial=aem_weight_initial,
+            aem_weight_final=aem_weight_final,
+            aem_annealing_epochs=aem_annealing_epochs,
+            subsampling=subsampling,
+            **kwargs,
+        )
+
+        # For logistic hazard, n_classes should equal num_bins
+        # Store this for converting back to continuous risk scores
+        self.num_bins = pooling_classifier.n_classes
+
+        # Setup survival-specific metrics
+        self._setup_metrics()
+
+    def _setup_metrics(self):
+        """Setup C-index and Brier score metrics for survival analysis."""
+
+        metrics = torchmetrics.MetricCollection(
+            {
+                "c_index": ConcordanceIndex(),
+                "brier_score": BrierScore(),
+            }
+        )
+
+        self.train_metrics = metrics.clone(prefix="train/")
+        self.val_metrics = metrics.clone(prefix="val/")
+        self.test_metrics = metrics.clone(prefix="test/")
+
+    def predict_step(self, batch: Data, batch_idx: int):
+        """Prediction step returns logits for discrete-time hazard intervals."""
+        data = batch
+
+        # Verify batch_size=1 for MIL
+        if hasattr(batch, "batch") and batch.batch is not None:
+            num_graphs = batch.batch.max().item() + 1
+            if num_graphs != 1:
+                raise ValueError(
+                    f"Batch size must be 1 for MIL, got {num_graphs} graphs"
+                )
+
+        logits, _ = self(data, instance_eval=False)
+        return logits  # Return logits, not hazards
