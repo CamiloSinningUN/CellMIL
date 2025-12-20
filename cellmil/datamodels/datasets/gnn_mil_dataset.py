@@ -9,7 +9,7 @@ from cellmil.interfaces.FeatureExtractorConfig import ExtractorType, FeatureExtr
 def GNNMILDataset(
     root: Union[str, Path], 
     folder: Union[str, Path],
-    label: str, 
+    label: str | tuple[str, str], 
     data: pd.DataFrame, 
     extractor: ExtractorType | list[ExtractorType],
     split: Literal["train", "val", "test", "all"] = "all",
