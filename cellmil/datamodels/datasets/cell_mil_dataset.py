@@ -20,7 +20,7 @@ from ..transforms import (
     Transform,
     FittableTransform,
     LabelTransform,
-    LabelTransformPipeline
+    LabelTransformPipeline,
 )
 from .utils import (
     wsl_preprocess,
@@ -39,7 +39,10 @@ from .utils import (
 
 
 class CellMILDataset(
-    Dataset[Tuple[torch.Tensor, int | Tuple[float, int]] | Tuple[torch.Tensor, torch.Tensor, int | Tuple[float, int]]]
+    Dataset[
+        Tuple[torch.Tensor, int | Tuple[float, int]]
+        | Tuple[torch.Tensor, torch.Tensor, int | Tuple[float, int]]
+    ]
 ):
     """
     An PyTorch Dataset for MIL (Multiple Instance Learning) tasks.
@@ -48,7 +51,7 @@ class CellMILDataset(
         For classification tasks:
             When cell_type=False or return_cell_types=False: Tuple[torch.Tensor, int] (features, label)
             When cell_type=True and return_cell_types=True: Tuple[torch.Tensor, torch.Tensor, int] (features, cell_types, label)
-        
+
         For survival prediction tasks:
             When cell_type=False or return_cell_types=False: Tuple[torch.Tensor, Tuple[float, int]] (features, (duration, event))
             When cell_type=True and return_cell_types=True: Tuple[torch.Tensor, torch.Tensor, Tuple[float, int]] (features, cell_types, (duration, event))
@@ -125,22 +128,24 @@ class CellMILDataset(
 
         # ROI filtering setup
         self.roi_folder = Path(roi_folder) if roi_folder is not None else None
-        
+
         # Validate ROI parameters
         if self.roi_folder is not None:
             if not self.roi_folder.exists():
                 raise ValueError(f"ROI folder does not exist: {self.roi_folder}")
-            
+
             # Check if data DataFrame has required columns for ROI filtering
-            required_roi_columns = ['ID', 'I3LUNG_ID', 'CENTER']
-            missing_columns = [col for col in required_roi_columns if col not in data.columns]
-            
+            required_roi_columns = ["ID", "I3LUNG_ID", "CENTER"]
+            missing_columns = [
+                col for col in required_roi_columns if col not in data.columns
+            ]
+
             if missing_columns:
                 raise ValueError(
                     f"ROI filtering requires the following columns in data DataFrame: {required_roi_columns}. "
                     f"Missing columns: {missing_columns}"
                 )
-            
+
             logger.info(f"ROI filtering enabled. ROI folder: {self.roi_folder}")
 
         self.max_workers = max_workers
@@ -200,7 +205,7 @@ class CellMILDataset(
         else:
             logger.info(f"Loading preprocessed dataset from {data_path}")
             self._load_data(data_path)
-        
+
         # Apply ROI filtering if enabled (after loading/processing complete dataset)
         if self.roi_folder is not None:
             self._apply_roi_filtering()
@@ -507,12 +512,12 @@ class CellMILDataset(
 
         # Extract labels for current task and filter slides
         self.labels = self._get_labels()
-        
+
         # Apply label transform if provided (e.g., discretize survival times)
         if self.label_transforms is not None and isinstance(self.label, tuple):
             # For survival tasks, apply discretization
             self.labels = self.label_transforms.transform_labels(self.labels)
-        
+
         self.slides = [slide for slide in self.all_slides if slide in self.labels]
 
         logger.info(
@@ -526,90 +531,98 @@ class CellMILDataset(
         Creates roi_filtered versions of features, cell_types_tensors, and cell_indices.
         """
         logger.info("Applying ROI filtering to loaded dataset...")
-        
+
         if self.segmentation_model is None:
             raise ValueError("segmentation_model must be specified for ROI filtering")
-        
+
         if self.roi_folder is None:
             raise ValueError("roi_folder must be specified for ROI filtering")
-        
+
         slides_to_remove: list[str] = []
         total_cells_before = 0
         total_cells_after = 0
-        
+
         for slide_name in tqdm(self.slides, desc="Applying ROI filtering"):
             # Load ROI for this slide
             roi_df = load_roi_for_slide(slide_name, self.roi_folder, self.raw_data)
-            
+
             if roi_df is None:
                 logger.warning(
                     f"No ROI found for slide {slide_name}, removing slide from dataset"
                 )
                 slides_to_remove.append(slide_name)
                 continue
-            
+
             # Get cell centroids
             centroids = get_centroids(self.folder, slide_name, self.segmentation_model)
-            
+
             if centroids is None:
-                logger.warning(f"Could not load centroids for slide {slide_name}, keeping all cells")
+                logger.warning(
+                    f"Could not load centroids for slide {slide_name}, keeping all cells"
+                )
                 continue
-            
+
             # Filter cells by ROI
             cells_to_keep = filter_cells_by_roi(centroids, roi_df)
-            
+
             total_cells_before += len(centroids)
             total_cells_after += len(cells_to_keep)
-            
+
             if len(cells_to_keep) == 0:
-                logger.warning(f"No cells within ROI for slide {slide_name}, removing slide from dataset")
+                logger.warning(
+                    f"No cells within ROI for slide {slide_name}, removing slide from dataset"
+                )
                 slides_to_remove.append(slide_name)
                 continue
-            
+
             # Get original cell_indices for this slide
             cell_indices = self.cell_indices[slide_name]
-            
+
             # Filter cell_indices to keep only cells within ROI
             filtered_cell_indices = {
-                cell_id: idx 
-                for cell_id, idx in cell_indices.items() 
+                cell_id: idx
+                for cell_id, idx in cell_indices.items()
                 if cell_id in cells_to_keep
             }
-            
+
             # Create a mapping from old indices to new indices
             old_to_new_idx = {
-                old_idx: new_idx 
-                for new_idx, old_idx in enumerate(sorted(filtered_cell_indices.values()))
+                old_idx: new_idx
+                for new_idx, old_idx in enumerate(
+                    sorted(filtered_cell_indices.values())
+                )
             }
-            
+
             # Filter features tensor
             indices_to_keep = sorted(filtered_cell_indices.values())
             self.features[slide_name] = self.features[slide_name][indices_to_keep]
-            
+
             # Update cell_indices with new sequential indices
             self.cell_indices[slide_name] = {
-                cell_id: old_to_new_idx[old_idx] 
+                cell_id: old_to_new_idx[old_idx]
                 for cell_id, old_idx in filtered_cell_indices.items()
             }
-            
+
             # Filter cell types if they exist
             if slide_name in self.cell_types_tensors:
-                self.cell_types_tensors[slide_name] = self.cell_types_tensors[slide_name][indices_to_keep]
-            
+                self.cell_types_tensors[slide_name] = self.cell_types_tensors[
+                    slide_name
+                ][indices_to_keep]
+
             logger.debug(
                 f"ROI filtering for {slide_name}: kept {len(cells_to_keep)}/{len(centroids)} cells "
-                f"({len(cells_to_keep)/len(centroids)*100:.1f}%)"
+                f"({len(cells_to_keep) / len(centroids) * 100:.1f}%)"
             )
-        
+
         # Remove slides with no cells in ROI
         for slide_name in slides_to_remove:
             self.slides.remove(slide_name)
             if slide_name in self.labels:
                 del self.labels[slide_name]
-        
+
         logger.info(
             f"ROI filtering complete: kept {total_cells_after}/{total_cells_before} cells "
-            f"({total_cells_after/total_cells_before*100:.1f}%) across {len(self.slides)} slides"
+            f"({total_cells_after / total_cells_before * 100:.1f}%) across {len(self.slides)} slides"
         )
         if slides_to_remove:
             logger.info(f"Removed {len(slides_to_remove)} slides with no cells in ROI")
@@ -617,7 +630,7 @@ class CellMILDataset(
     def get_num_labels(self) -> int:
         """
         Get the number of unique labels in the dataset.
-        
+
         Note: For survival prediction tasks, this returns 0 as there are no discrete classes.
         """
         # Check if we have survival data by looking at the first label
@@ -626,29 +639,49 @@ class CellMILDataset(
             if isinstance(first_label, tuple):
                 # Survival data - no discrete classes
                 return 0
-        
+
         # Classification data
         return len(set(self.labels.values()))
 
     def get_weights_for_sampler(self) -> torch.Tensor:
         """
         Get weights for WeightedRandomSampler to handle class imbalance.
-        
+
         Note: Only applicable for classification tasks. For survival prediction,
         returns uniform weights.
         """
         # Convert dictionary values to list in the same order as slides
         labels_list = [self.labels[slide] for slide in self.slides]
-        
+
         # Check if we have survival data
         if labels_list and isinstance(labels_list[0], tuple):
             # Survival data - return uniform weights
             logger.warning("Uniform weights used for survival prediction tasks")
             return torch.ones(len(labels_list), dtype=torch.float32)
-        
+
         # Classification data
         return weights_for_sampler(labels_list)  # type: ignore
-
+    def get_config(self) -> dict[str, Any]:
+        """Get dataset configuration as a dictionary."""
+        config: dict[str, Any] = {
+            "dataset_type": self.__class__.__name__,
+            "label": str(self.label),
+            "extractor": str(self.extractor),
+            "split": self.split,
+            "cell_type": self.cell_type,
+            "return_cell_types": self.return_cell_types,
+        }
+        
+        if self.graph_creator is not None:
+            config["graph_creator"] = str(self.graph_creator)
+        if self.segmentation_model is not None:
+            config["segmentation_model"] = str(self.segmentation_model)
+        if self.cell_types_to_keep_indices is not None:
+            config["cell_types_to_keep_indices"] = self.cell_types_to_keep_indices
+        if self.roi_folder is not None:
+            config["roi_folder"] = str(self.roi_folder)
+        
+        return config
     def __len__(self) -> int:
         """
         Return the number of samples in the dataset.
@@ -658,8 +691,8 @@ class CellMILDataset(
     def __getitem__(
         self, idx: int
     ) -> Union[
-        Tuple[torch.Tensor, int | Tuple[float, int]], 
-        Tuple[torch.Tensor, torch.Tensor, int | Tuple[float, int]]
+        Tuple[torch.Tensor, int | Tuple[float, int]],
+        Tuple[torch.Tensor, torch.Tensor, int | Tuple[float, int]],
     ]:
         """
         Get a sample from the dataset.
@@ -676,7 +709,7 @@ class CellMILDataset(
                     - features is a tensor of shape (n_instances, n_features)
                     - cell_types is a tensor of shape (n_instances, n_cell_types) with one-hot encoded cell types
                     - label is the sample label (int)
-            
+
             For survival prediction tasks:
                 If cell_type=False or return_cell_types=False:
                     Tuple of (features, (duration, event)) where features is a tensor and (duration, event) is survival data
@@ -757,8 +790,34 @@ class CellMILDataset(
         Raises:
             ValueError: If any index is out of range
         """
+        # Allow empty indices for validation-less training (e.g., final model on all data)
         if not indices:
-            raise ValueError("Indices list cannot be empty")
+            # Create empty subset
+            subset = CellMILDataset.__new__(CellMILDataset)
+            subset.root = self.root
+            subset.label = self.label
+            subset.folder = self.folder
+            subset.raw_data = self.raw_data
+            subset.extractor = self.extractor
+            subset.graph_creator = self.graph_creator
+            subset.segmentation_model = self.segmentation_model
+            subset.split = self.split
+            subset.cell_type = self.cell_type
+            subset.return_cell_types = self.return_cell_types
+            subset.cell_types_to_keep_indices = self.cell_types_to_keep_indices
+            subset.max_workers = self.max_workers
+            subset.force_reload = self.force_reload
+            subset.transforms = self.transforms
+            subset.wsl = self.wsl
+            subset.slides = []
+            subset.all_slides = self.all_slides
+            subset.cell_types = self.cell_types
+            subset.features = self.features
+            subset.cell_types_tensors = self.cell_types_tensors
+            subset.cell_indices = self.cell_indices
+            subset.labels = {}
+            logger.info("Created empty subset (0 samples)")
+            return subset
 
         max_idx = len(self.slides) - 1
         invalid_indices = [idx for idx in indices if idx < 0 or idx > max_idx]
@@ -836,8 +895,7 @@ class CellMILDataset(
         """
         if not train_indices:
             raise ValueError("train_indices cannot be empty")
-        if not val_indices:
-            raise ValueError("val_indices cannot be empty")
+        # Allow empty val_indices for training final model on all data
 
         # Validate indices
         max_idx = len(self.slides) - 1
@@ -860,16 +918,15 @@ class CellMILDataset(
         # Fit label transform on training labels if provided (before feature transforms)
         if label_transforms is not None and isinstance(self.label, tuple):
             logger.info("Fitting label transform on training survival data...")
-            
+
             # Get training labels
             train_labels = {
-                self.slides[idx]: self.labels[self.slides[idx]] 
-                for idx in train_indices
+                self.slides[idx]: self.labels[self.slides[idx]] for idx in train_indices
             }
-            
+
             # Fit the label transform on training labels
-            label_transforms.fit(train_labels) # type: ignore
-            logger.info(f"Label transform fitted with {label_transforms.n_bins} bins") # type: ignore
+            label_transforms.fit(train_labels)  # type: ignore
+            logger.info(f"Label transform fitted with {label_transforms.n_bins} bins")  # type: ignore
 
         # If no transforms provided, create simple subsets
         if transforms is None and label_transforms is None:
@@ -928,16 +985,20 @@ class CellMILDataset(
 
         train_dataset.transforms = transforms
         val_dataset.transforms = transforms
-        
+
         # Apply label transform to both datasets if provided
         if label_transforms is not None:
             train_dataset.label_transforms = label_transforms
             val_dataset.label_transforms = label_transforms
-            
+
             # Apply label transformation to the labels
             if isinstance(self.label, tuple):
-                train_dataset.labels = label_transforms.transform_labels(train_dataset.labels)
-                val_dataset.labels = label_transforms.transform_labels(val_dataset.labels)
+                train_dataset.labels = label_transforms.transform_labels(
+                    train_dataset.labels
+                )
+                val_dataset.labels = label_transforms.transform_labels(
+                    val_dataset.labels
+                )
 
         logger.info("Successfully created train/val datasets with fitted transforms")
         logger.info(f"Train dataset: {len(train_dataset)} samples")
