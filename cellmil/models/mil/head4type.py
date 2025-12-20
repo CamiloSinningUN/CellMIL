@@ -213,7 +213,7 @@ class LitHead4Type(LitGeneral):
         loss: nn.Module = nn.CrossEntropyLoss(),
         lr_scheduler: LRScheduler | None = None,
         subsampling: float = 0.8,
-        use_aem: bool = True,
+        use_aem: bool = False,
         aem_weight_initial: float = 0.0001,
         aem_weight_final: float = 0.0,
         aem_annealing_epochs: int = 25,
