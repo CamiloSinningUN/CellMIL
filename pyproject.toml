@@ -68,6 +68,7 @@ create_dataset = "cellmil.cli.dataset_creation:main"
 vis_features = "cellmil.cli.visualize_features:main"
 graph_creation = "cellmil.cli.graph_creation:main"
 stats_print = "cellmil.cli.stats_print:main"
+eval_report = "cellmil.cli.eval_report:main"
 
 [tool.poetry.group.dev.dependencies]
 sphinx-copybutton = "^0.5.2"

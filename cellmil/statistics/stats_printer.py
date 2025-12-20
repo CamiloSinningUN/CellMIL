@@ -1,5 +1,4 @@
 import wandb
-import re
 import pandas as pd
 from tqdm import tqdm
 import bambi as bmb  # type: ignore
@@ -10,6 +9,7 @@ from typing import Any, cast
 from statsmodels.formula.api import mixedlm  # type: ignore
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from cellmil.interfaces.StatsPrinterConfig import StatsPrinterConfig
+from cellmil.utils.wandb import WandbClient
 from cellmil.utils import logger
 
 
@@ -61,8 +61,12 @@ class StatsPrinter:
         # TODO: ----
 
         self.df = pd.DataFrame()
-        self._get_runs()
-        self._preprocess_runs()
+        self.wandb_client = WandbClient(
+            team=self.config.team,
+            projects=self.config.projects,
+            tasks=self.tasks
+        )
+        self.runs = self.wandb_client.get_runs(preprocess=True)
         logger.info(f"Total accessible runs after preprocessing: {len(self.runs)}")
 
         self._load_runs_into_df()
@@ -72,84 +76,19 @@ class StatsPrinter:
                 "DataFrame is empty after loading runs. Check logs for errors during run processing."
             )
             
-        print(self.df.head(10)) # TODO: Remove after debugging 
-        
-        self._check_df()
         print(self.df.head())
 
-    def _get_runs(self):
-        try:
-            api = wandb.Api()
-        except Exception as e:
-            raise RuntimeError(f"Failed to initialize W&B API: {e}") from e
-
-        runs: list[Any] = []
-        inaccessible: list[str] = []
-
-        for project in self.config.projects:
-            project_path = f"{self.config.team}/{project}"
-            try:
-                project_runs = cast(Any, api.runs(project_path))
-                runs.extend(project_runs)
-            except Exception as e:
-                inaccessible.append(project_path)
-                print(f"Warning: cannot access project '{project_path}': {e}")
-
-        if inaccessible and not runs:
-            raise RuntimeError(
-                f"No accessible projects. Inaccessible: {', '.join(inaccessible)}"
-            )
-        elif inaccessible:
-            print(f"Partial access. Inaccessible projects: {', '.join(inaccessible)}")
-
-        self.runs = runs
-
-    def _preprocess_runs(self):
-        # Filter all runs that start with FINAL_
-        logger.info(
-            f"Preprocessing runs: filtering out FINAL_ runs with total runs {len(self.runs)}"
-        )
-
-        self.runs = [run for run in self.runs if not run.name.startswith("FINAL_")]
-
-        logger.info(
-            f"Preprocessing runs: filtered out FINAL_ runs, remaining runs {len(self.runs)}"
-        )
-
-        # Filter out crashed or failed runs
-        logger.info("Filtering runs with crashed or failed state")
-        initial_count = len(self.runs)
-        self.runs = [run for run in self.runs if run.state not in ["crashed", "failed"]]
-        filtered_count = initial_count - len(self.runs)
-        logger.info(
-            f"Preprocessing runs: filtered out {filtered_count} crashed/failed runs, remaining runs {len(self.runs)}"
-        )
-
-        logger.info("Filtering runs, which task is ADENO or any other invalid task")
-        filtered_runs: list[Any] = []
-        for run in self.runs:
-            try:
-                if self._get_task(self._get_experiment_id(run.name)):
-                    filtered_runs.append(run)
-            except ValueError:
-                # Skip runs that don't have a valid task
-                continue
-        self.runs = filtered_runs
-
-        logger.info(
-            f"Preprocessing runs: filtered out ADENO runs, remaining runs {len(self.runs)}"
-        )
 
     def _load_runs_into_df(self):
         def process_run(run: Any) -> dict[str, str | int | None | float]:
             """Process a single run and return its data."""
-            experiment_id = self._get_experiment_id(run.name)
+            experiment_id = self.wandb_client.get_experiment_id(run)
 
             run_data: dict[str, str | int | None | float] = {
                 self.COLUMN_EXPERIMENT_ID: experiment_id,
-                self.COLUMN_TASK: self._get_task(experiment_id),
+                self.COLUMN_TASK: self.wandb_client.get_task(experiment_id),
                 **self._get_run_config(experiment_id),
-                **{metric: self._get_metric(run, metric) for metric in self.METRICS}
+                **{metric: self.wandb_client.get_metric(run, metric) for metric in self.METRICS}
             }
             return run_data
 
@@ -177,44 +116,7 @@ class StatsPrinter:
         self.df = pd.DataFrame(data)
         logger.info(f"Loaded {len(self.df)} runs into DataFrame.")
 
-    def _get_experiment_id(self, run_name: str) -> str:
-        """
-        Get the experiment ID from the run name.
-
-        Args:
-            run_name: The name of the wandb run
-        Returns:
-            The extracted experiment ID
-        """
-
-        # Split by first two underscores to get the part after them
-        parts = run_name.split("_", 2)
-        if len(parts) >= 3:
-            # Extract from parts[2] until we find _\d
-            match = re.match(r"([^_]+(?:_[^0-9][^_]*)*)", parts[2])
-            experiment_id = match.group(1) if match else parts[2]
-        else:
-            experiment_id = run_name
-
-        return experiment_id
-
-    def _get_task(self, experiment_id: str) -> str | None:
-        """
-        Get the task associated with a given experiment ID.
-
-        Args:
-            experiment_id: The ID of the experiment
-
-        Returns:
-            The name of the task
-        """
-        task = experiment_id.split("+")[0]
-        if task in self.tasks:
-            return task
-        else:
-            raise ValueError(
-                f"Experiment ID '{experiment_id}' does not correspond to a known task."
-            )
+    
 
     def _get_run_config(self, experiment_id: str) -> dict[str, int]:
         """
@@ -245,68 +147,6 @@ class StatsPrinter:
                 run_config[mil] = 1 if mil in experiment_id else 0
 
         return run_config
-
-    def _get_metric(self, run: Any, metric: str) -> float:
-        """
-        Get the highest validation metric across all epochs for a given run.
-
-        Args:
-            run: A wandb run object
-            metric: The metric name (e.g., "f1", "c_index", "balacc")
-
-        Returns:
-            The highest validation metric score
-        """
-        history = run.history(keys=[f"val/{metric}"])
-        if history.empty or f"val/{metric}" not in history.columns:
-            raise ValueError(
-                f"Run {run.name} has no 'val/{metric}' metric in its history"
-            )
-
-        # Drop NaN values and get the maximum
-        metric_values = history[f"val/{metric}"].dropna()
-
-        if metric_values.empty:
-            raise ValueError(
-                f"Run {run.name} has no valid 'val/{metric}' values in its history"
-            )
-
-        max_metric = float(metric_values.max())
-
-        return max_metric
-
-    def _check_df(self):
-        """
-        Check that there are exactly 5 runs for each experiment ID (5-fold cross-validation).
-        Logs warnings for experiment IDs that don't have exactly 5 runs.
-        """
-        experiment_counts = self.df[self.COLUMN_EXPERIMENT_ID].value_counts()
-
-        total_experiments = len(experiment_counts)
-        expected_count = 5
-
-        # Find experiments with incorrect count
-        incorrect_counts = experiment_counts[experiment_counts != expected_count]
-
-        if incorrect_counts.empty:
-            logger.info(
-                f"All {total_experiments} experiment IDs have exactly {expected_count} runs"
-            )
-        else:
-            logger.warning(
-                f"{len(incorrect_counts)} experiment ID(s) do not have exactly {expected_count} runs:"
-            )
-            for exp_id, count in incorrect_counts.items():
-                logger.warning(
-                    f"  - {exp_id}: {count} runs (expected {expected_count})"
-                )
-
-        # Summary statistics
-        logger.info(f"Total unique experiment IDs: {total_experiments}")
-        logger.info(f"Total runs in DataFrame: {len(self.df)}")
-        logger.info(
-            f"Run counts - Min: {experiment_counts.min()}, Max: {experiment_counts.max()}, Mean: {experiment_counts.mean():.2f}"
-        )
 
     def _fit_frequentist_models(
         self, metric: str, config_columns: list[str]
