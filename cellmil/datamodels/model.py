@@ -70,35 +70,51 @@ class ModelStorage:
             └── metadata.json
     """
 
-    def __init__(self, output_dir: Union[str, Path], experiment_name: str):
+    def __init__(self, output_dir: Union[str, Path], experiment_name: str, load_existing: bool = False):
         """
         Initialize ModelStorage.
 
         Args:
             output_dir: Base directory for storing results
             experiment_name: Name of the experiment
+            load_existing: If True, load from existing directory without versioning
         """
         base_dir = Path(output_dir)
         proposed_dir = base_dir / experiment_name
         
-        # If directory exists, create versioned name
-        if proposed_dir.exists():
-            version = 2
-            while (base_dir / f"{experiment_name}_v{version}").exists():
-                version += 1
-            self.output_dir = base_dir / f"{experiment_name}_v{version}"
-            self.experiment_name = f"{experiment_name}_v{version}"
-            logger.warning(
-                f"Experiment '{experiment_name}' already exists. "
-                f"Creating new version: '{self.experiment_name}'"
-            )
-        else:
+        # If loading existing, use the directory as-is
+        if load_existing:
+            if not proposed_dir.exists():
+                raise FileNotFoundError(
+                    f"Cannot load existing experiment: '{proposed_dir}' does not exist"
+                )
             self.output_dir = proposed_dir
             self.experiment_name = experiment_name
+            logger.info(f"Loading existing experiment: '{self.experiment_name}'")
+        else:
+            # If directory exists, create versioned name
+            if proposed_dir.exists():
+                version = 2
+                while (base_dir / f"{experiment_name}_v{version}").exists():
+                    version += 1
+                self.output_dir = base_dir / f"{experiment_name}_v{version}"
+                self.experiment_name = f"{experiment_name}_v{version}"
+                logger.warning(
+                    f"Experiment '{experiment_name}' already exists. "
+                    f"Creating new version: '{self.experiment_name}'"
+                )
+            else:
+                self.output_dir = proposed_dir
+                self.experiment_name = experiment_name
+            
+            self.output_dir.mkdir(parents=True, exist_ok=True)
         
-        self.output_dir.mkdir(parents=True, exist_ok=True)
         self.fold_metadata: dict[int, FoldMetadata] = {}
         self.experiment_metadata: Optional[ExperimentMetadata] = None
+        
+        # If loading existing, load all metadata
+        if load_existing:
+            self._load_all_metadata()
 
     def save_fold_results(
         self,
@@ -280,5 +296,82 @@ class ModelStorage:
 
         return train_indices, val_indices
 
+    @classmethod
+    def from_directory(cls, experiment_dir: Union[str, Path]) -> "ModelStorage":
+        """
+        Load an existing experiment from a directory.
+
+        Args:
+            experiment_dir: Path to the experiment directory
+
+        Returns:
+            ModelStorage instance with loaded metadata
+
+        Example:
+            >>> storage = ModelStorage.from_directory("/path/to/experiments/my_experiment")
+            >>> print(storage.experiment_metadata)
+            >>> predictions = storage.load_all_predictions()
+        """
+        experiment_dir = Path(experiment_dir)
+        if not experiment_dir.exists():
+            raise FileNotFoundError(f"Experiment directory not found: {experiment_dir}")
+
+        # Extract experiment name and parent directory
+        experiment_name = experiment_dir.name
+        output_dir = experiment_dir.parent
+
+        # Create instance with load_existing=True
+        return cls(output_dir, experiment_name, load_existing=True)
+
+    def _load_experiment_metadata(self) -> None:
+        """Load experiment metadata from disk."""
+        metadata_path = self.output_dir / "experiment_metadata.json"
+        if not metadata_path.exists():
+            logger.warning("Experiment metadata file not found")
+            return
+
+        with open(metadata_path, "r") as f:
+            metadata_dict = json.load(f)
+
+        self.experiment_metadata = ExperimentMetadata(**metadata_dict)
+
+    def _load_fold_metadata(self, fold_idx: int) -> None:
+        """Load metadata for a specific fold."""
+        metadata_path = self.output_dir / f"fold_{fold_idx}" / "metadata.json"
+        if not metadata_path.exists():
+            raise FileNotFoundError(f"Metadata not found for fold {fold_idx}")
+
+        with open(metadata_path, "r") as f:
+            metadata_dict = json.load(f)
+
+        self.fold_metadata[fold_idx] = FoldMetadata(**metadata_dict)
+
+    def _load_all_metadata(self) -> None:
+        """Load all experiment and fold metadata from disk."""
+        # Load experiment metadata
+        self._load_experiment_metadata()
+
+        # Find all fold directories and load their metadata
+        fold_dirs = sorted(self.output_dir.glob("fold_*"))
+        for fold_dir in fold_dirs:
+            try:
+                fold_idx = int(fold_dir.name.split("_")[1])
+                self._load_fold_metadata(fold_idx)
+            except (ValueError, IndexError) as _:
+                logger.warning(f"Skipping invalid fold directory: {fold_dir.name}")
+
+        logger.info(
+            f"Loaded experiment '{self.experiment_name}' with {len(self.fold_metadata)} folds"
+        )
+
+    def list_folds(self) -> list[int]:
+        """Get list of available fold indices."""
+        return sorted(self.fold_metadata.keys())
+
+    def has_final_model(self) -> bool:
+        """Check if a final model exists."""
+        return (self.output_dir / "final_model" / "final_model.ckpt").exists()
+
     def __repr__(self) -> str:
-        return f"ModelStorage(experiment='{self.experiment_name}', output_dir='{self.output_dir}')"
+        n_folds = len(self.fold_metadata)
+        return f"ModelStorage(experiment='{self.experiment_name}', folds={n_folds}, dir='{self.output_dir}')'"
