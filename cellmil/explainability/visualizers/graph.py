@@ -464,8 +464,9 @@ class AttentionGraphVisualizer:
                         max_attention - min_attention
                     )
                     node_sizes = (
-                        1 + 10 * normalized_attention
+                        1 + 7 * normalized_attention
                     )  # Sizes from 4 to 12 (much smaller)
+                    # node_sizes = 6
                 else:
                     node_sizes = 6  # Smaller default size
             else:
@@ -503,7 +504,7 @@ class AttentionGraphVisualizer:
                 marker=dict(
                     size=node_sizes,
                     color=robust_colors,
-                    colorscale="Plasma",  # Beautiful plasma colorscale for black background
+                    colorscale="Turbo",  # Beautiful plasma colorscale for black background
                     showscale=True,
                     cmin=0
                     if isinstance(node_color, np.ndarray) and robust_color
