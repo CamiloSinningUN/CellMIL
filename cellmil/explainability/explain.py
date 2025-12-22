@@ -33,7 +33,8 @@ from cellmil.interfaces.GraphCreatorConfig import GraphCreatorType
 from .explainer import Attention
 from cellmil.utils import logger
 from cellmil.models.mil import LitAttentionDeepMIL, LitCLAM, LitGraphMIL
-
+from cellmil.models.mil.head4type import LitHead4Type
+from cellmil.datamodels.datasets.utils import get_cell_types
 
 class Explain:
     """
@@ -104,7 +105,7 @@ class Explain:
         )
 
         # Load data from slide path
-        data, cell_data_path, cell_indices, cell_coordinates = self._load_slide_data(
+        data, cell_data_path, cell_indices, cell_coordinates, cell_types = self._load_slide_data(
             slide_path=slide_path,
             model=model,
             extractor=extractor,
@@ -122,6 +123,7 @@ class Explain:
             cell_data_path=cell_data_path,
             cell_indices=cell_indices,
             cell_coordinates=cell_coordinates,
+            cell_types=cell_types,
             **kwargs,
         )
 
@@ -142,6 +144,7 @@ class Explain:
         Path,
         Dict[int, int],
         Dict[int, tuple[float, float]],
+        Optional[Dict[int, int]],
     ]:
         """
         Load data from the slide path for explanation.
@@ -155,7 +158,7 @@ class Explain:
             transforms: Transform pipeline to apply
 
         Returns:
-            Tuple of (data, cell_data_path, cell_indices, cell_coordinates)
+            Tuple of (data, cell_data_path, cell_indices, cell_coordinates, cell_types)
         """
         slide_name = slide_path.name
         logger.info(f"Loading data for slide: {slide_name}")
@@ -210,6 +213,20 @@ class Explain:
             raise FileNotFoundError(f"Cell data file not found: {cell_data_path}")
         else:
             logger.info(f"Cell data path found: {cell_data_path}")
+
+        # Load cell types for Head4Type models
+        cell_types = None
+        if isinstance(model, LitHead4Type):
+            logger.info("Loading cell types for Head4Type model...")
+            
+            cell_types = get_cell_types(
+                folder=slide_path.parent,
+                slide_name=slide_name,
+                segmentation_model=segmentation_model,
+            )
+            
+            if cell_types is None:
+                raise ValueError(f"Could not load cell types for slide {slide_name}")
 
         # Prepare data based on model type
         if isinstance(model, LitGraphMIL):
@@ -297,7 +314,7 @@ class Explain:
 
         logger.info("Data loading completed successfully")
         
-        return data, cell_data_path, cell_indices, cell_coordinates
+        return data, cell_data_path, cell_indices, cell_coordinates, cell_types
 
     def _validate_inputs(
         self,
@@ -308,7 +325,7 @@ class Explain:
         """Validate input parameters."""
 
         # Check model type
-        supported_model_classes = (LitCLAM, LitAttentionDeepMIL, LitGraphMIL)
+        supported_model_classes = (LitCLAM, LitAttentionDeepMIL, LitGraphMIL, LitHead4Type)
         if not isinstance(model, supported_model_classes):
             raise ValueError(
                 f"Unsupported model type: {model.__class__.__name__}. "

@@ -325,7 +325,15 @@ class PatchMILDataset(Dataset[Tuple[torch.Tensor, int | Tuple[float, int]]]):
         
         # Classification data
         return weights_for_sampler(labels_list)  # type: ignore
-
+    def get_config(self) -> dict[str, Any]:
+        """Get dataset configuration as a dictionary."""
+        return {
+            "dataset_type": self.__class__.__name__,
+            "label": str(self.label),
+            "extractor": str(self.extractor),
+            "split": self.split,
+        }
+        
     def create_subset(self, indices: List[int]) -> "PatchMILDataset":
         """
         Create a subset of the dataset using the specified indices.
@@ -342,8 +350,26 @@ class PatchMILDataset(Dataset[Tuple[torch.Tensor, int | Tuple[float, int]]]):
         Raises:
             ValueError: If any index is out of range
         """
+        # Allow empty indices for validation-less training (e.g., final model on all data)
         if not indices:
-            raise ValueError("Indices list cannot be empty")
+            # Create empty subset
+            subset = PatchMILDataset.__new__(PatchMILDataset)
+            subset.root = self.root
+            subset.label = self.label
+            subset.folder = self.folder
+            subset.raw_data = self.raw_data
+            subset.extractor = self.extractor
+            subset.split = self.split
+            subset.force_reload = self.force_reload
+            subset.transforms = self.transforms
+            subset.label_transforms = self.label_transforms
+            subset.wsl = self.wsl
+            subset.slides = []
+            subset.all_slides = self.all_slides
+            subset.features = self.features
+            subset.labels = {}
+            logger.info("Created empty subset (0 samples)")
+            return subset
 
         max_idx = len(self.slides) - 1
         invalid_indices = [idx for idx in indices if idx < 0 or idx > max_idx]

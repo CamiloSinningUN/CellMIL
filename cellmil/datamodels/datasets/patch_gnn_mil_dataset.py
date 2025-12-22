@@ -117,6 +117,15 @@ class PatchGNNMILDataset(InMemoryDataset):
         """
         pass
     
+    def get_config(self) -> dict[str, Any]:
+        """Get dataset configuration as a dictionary."""
+        return {
+            "dataset_type": self.__class__.__name__,
+            "label": str(self.label),
+            "extractor": str(self.extractor),
+            "split": self.split,
+        }
+
     def get_num_labels(self) -> int:
         """
         Get the number of unique labels in the dataset.
@@ -470,8 +479,11 @@ class PatchGNNMILDataset(InMemoryDataset):
         Raises:
             ValueError: If any index is out of range
         """
+        # Allow empty indices for validation-less training (e.g., final model on all data)
         if not indices:
-            raise ValueError("Indices list cannot be empty")
+            subset = SubsetPatchGNNMILDataset(self, [])
+            logger.info("Created empty GNN subset (0 samples)")
+            return subset
             
         max_idx = len(self) - 1
         invalid_indices = [idx for idx in indices if idx < 0 or idx > max_idx]

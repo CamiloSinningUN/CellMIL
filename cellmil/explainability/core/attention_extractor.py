@@ -74,7 +74,7 @@ class BaseAttentionExtractor(ABC):
         self.config = config
 
     @abstractmethod
-    def extract(self, model: Any, data: Any) -> AttentionResult:
+    def extract(self, model: Any, data: Any, **kwargs: Any) -> AttentionResult:
         """Extract attention weights from the model."""
         pass
 
@@ -214,7 +214,7 @@ class BaseAttentionExtractor(ABC):
 class CLAMAttentionExtractor(BaseAttentionExtractor):
     """Attention extractor for CLAM models."""
 
-    def extract(self, model: Any, data: torch.Tensor) -> AttentionResult:
+    def extract(self, model: Any, data: torch.Tensor, **kwargs: Any) -> AttentionResult:
         """
         Extract attention weights from CLAM model.
 
@@ -271,7 +271,7 @@ class CLAMAttentionExtractor(BaseAttentionExtractor):
 class AttentionDeepMILExtractor(BaseAttentionExtractor):
     """Attention extractor for AttentionDeepMIL models."""
 
-    def extract(self, model: Any, data: torch.Tensor) -> AttentionResult:
+    def extract(self, model: Any, data: torch.Tensor, **kwargs: Any) -> AttentionResult:
         """
         Extract attention weights from AttentionDeepMIL model.
 
@@ -335,10 +335,106 @@ class AttentionDeepMILExtractor(BaseAttentionExtractor):
             raise
 
 
+class Head4TypeAttentionExtractor(BaseAttentionExtractor):
+    """Attention extractor for Head4Type models."""
+
+    def extract(
+        self,
+        model: Any,
+        data: torch.Tensor,
+        cell_types_tensor: Optional[torch.Tensor] = None,
+        **kwargs: Any,
+    ) -> AttentionResult:
+        """
+        Extract attention weights from Head4Type model.
+
+        Args:
+            model: Head4Type model instance
+            data: Input tensor of shape [n_instances, feat_dim]
+            cell_types_tensor: Cell types tensor of shape [n_instances, n_cell_types] (required for Head4Type)
+
+        Returns:
+            AttentionResult with Head4Type attention weights (one entry per head)
+        """
+        logger.info("Extracting attention from Head4Type model")
+
+        if cell_types_tensor is None:
+            raise ValueError("cell_types_tensor is required for Head4Type model")
+
+        try:
+            model.eval()
+            with torch.no_grad():
+                # Get raw attention weights from model
+                # Head4Type returns attention of shape [n_heads, n_instances]
+                attention_raw = model.get_attention_weights(data, cell_types_tensor)
+                
+                # Detailed debugging
+                logger.info(f"Raw Head4Type attention shape: {attention_raw.shape}")
+                attention_sum_by_head = attention_raw.sum(dim=1)
+                logger.info(f"Sum of RAW attention weights by head: {attention_sum_by_head}")
+                
+                # Check for zeros/NaNs in raw attention
+                for i in range(attention_raw.shape[0]):
+                    head_data = attention_raw[i]
+                    num_zeros = (head_data == 0).sum().item()
+                    num_nonzeros = (head_data != 0).sum().item()
+                    logger.info(f"  Head {i}: {num_nonzeros} non-zero, {num_zeros} zero values. Min: {head_data.min():.6f}, Max: {head_data.max():.6f}")
+
+            attention_weights: dict[str, torch.Tensor] = {}
+            metadata = {
+                "n_heads": attention_raw.shape[0],
+                "n_instances": attention_raw.shape[1],
+                "has_multi_head": attention_raw.shape[0] > 1,
+            }
+
+            # Handle head-specific attention
+            if self.config.attention_head is not None:
+                if self.config.attention_head < attention_raw.shape[0]:
+                    attention_weights["head_attention"] = self._normalize_attention(
+                        attention_raw[
+                            self.config.attention_head : self.config.attention_head + 1,
+                            :,
+                        ]
+                    )
+                    metadata["selected_head"] = self.config.attention_head
+                else:
+                    logger.warning(
+                        f"Attention head {self.config.attention_head} out of range for {attention_raw.shape[0]} heads"
+                    )
+                    attention_weights["head_attention"] = self._normalize_attention(
+                        attention_raw[0:1, :]
+                    )
+            else:
+                if attention_raw.shape[0] == 1:
+                    # Single head
+                    attention_weights["head_attention"] = self._normalize_attention(
+                        attention_raw
+                    )
+                else:
+                    # Multiple heads - include mean and individual heads
+                    mean_before_norm = attention_raw.mean(dim=0, keepdim=True)
+                    logger.info(f"Mean attention BEFORE normalization - sum: {mean_before_norm.sum():.6f}")
+                    attention_weights["mean_attention"] = self._normalize_attention(mean_before_norm)
+                    logger.info(f"Mean attention AFTER normalization - sum: {attention_weights['mean_attention'].sum():.6f}")
+                    
+                    for i in range(attention_raw.shape[0]):
+                        head_before_norm = attention_raw[i : i + 1, :]
+                        logger.info(f"Head {i} BEFORE normalization - sum: {head_before_norm.sum():.6f}, min: {head_before_norm.min():.6f}, max: {head_before_norm.max():.6f}")
+                        normalized_head = self._normalize_attention(head_before_norm)
+                        logger.info(f"Head {i} AFTER normalization - sum: {normalized_head.sum():.6f}, min: {normalized_head.min():.6f}, max: {normalized_head.max():.6f}")
+                        attention_weights[f"head_{i}_attention"] = normalized_head
+
+            return AttentionResult(attention_weights, metadata, "Head4Type")
+
+        except Exception as e:
+            logger.error(f"Error extracting Head4Type attention: {e}")
+            raise
+
+
 class GraphMILAttentionExtractor(BaseAttentionExtractor):
     """Attention extractor for GraphMIL models."""
 
-    def extract(self, model: Any, data: Any) -> AttentionResult:
+    def extract(self, model: Any, data: Any, **kwargs: Any) -> AttentionResult:
         """
         Extract attention weights from GraphMIL model.
 
@@ -559,16 +655,22 @@ class GraphMILAttentionExtractor(BaseAttentionExtractor):
                         f"GNN attention for {layer_key} has {att_edges_heads.shape[0]} weights, expected "
                         f"{original_num_edges} or {expected_num_edges_with_self_loops}."
                     )
-                    
+
                 # Move index & values to same device
                 device = edge_attention.device
                 active_edge_index = active_edge_index.to(device)
-                edge_attention = edge_attention.to(device)    
-                    
-                target_nodes = active_edge_index[1]  # convention: edge_index = [source, target]
-                col_sums = torch.zeros(num_nodes, device=device, dtype=edge_attention.dtype)
-                col_sums.scatter_add_(0, target_nodes, edge_attention)  # col_sums[i] = sum_{j->i} alpha_{j,i}    
-                
+                edge_attention = edge_attention.to(device)
+
+                target_nodes = active_edge_index[
+                    1
+                ]  # convention: edge_index = [source, target]
+                col_sums = torch.zeros(
+                    num_nodes, device=device, dtype=edge_attention.dtype
+                )
+                col_sums.scatter_add_(
+                    0, target_nodes, edge_attention
+                )  # col_sums[i] = sum_{j->i} alpha_{j,i}
+
                 # If the per-destination sums are not 1 (e.g., raw scores) normalize them.
                 if not torch.allclose(col_sums, torch.ones_like(col_sums), atol=1e-4):
                     # avoid dividing by zero
@@ -576,12 +678,14 @@ class GraphMILAttentionExtractor(BaseAttentionExtractor):
                     col_sums_safe[col_sums_safe <= 1e-12] = 1.0
                     col_sums_for_edges = col_sums_safe.gather(0, target_nodes)
                     normalized_edge_attention = edge_attention / col_sums_for_edges
-                    logger.info(f"Normalized edge attention for {layer_key} (per-target sums not 1)")
+                    logger.info(
+                        f"Normalized edge attention for {layer_key} (per-target sums not 1)"
+                    )
                 else:
-                    normalized_edge_attention = edge_attention    
-                    
+                    normalized_edge_attention = edge_attention
+
                 indices = active_edge_index.long()  # shape [2, num_edges]
-                attention_matrix = torch.sparse_coo_tensor( # type: ignore
+                attention_matrix = torch.sparse_coo_tensor(  # type: ignore
                     indices,
                     normalized_edge_attention,
                     size=(num_nodes, num_nodes),
@@ -591,7 +695,10 @@ class GraphMILAttentionExtractor(BaseAttentionExtractor):
                 transition_matrix = attention_matrix.t()
                 # transition_matrix = attention_matrix
 
-                current_attention = cast(torch.Tensor, torch.sparse.mm(transition_matrix, current_attention.T).T)  # [heads, n_nodes] # type: ignore
+                current_attention = cast(
+                    torch.Tensor,
+                    torch.sparse.mm(transition_matrix, current_attention.T).T, # type: ignore
+                )  # [heads, n_nodes] 
 
                 # Check if each row in current_attention sums to 1 (within tolerance)
                 row_sums = current_attention.sum(dim=1, keepdim=True)  # [heads, 1]
@@ -599,9 +706,10 @@ class GraphMILAttentionExtractor(BaseAttentionExtractor):
                     logger.warning(
                         f"Rows in current_attention do not sum to 1. Min: {row_sums.min().item()}, Max: {row_sums.max().item()}"
                     )
-                    row_sums = torch.where(row_sums > 1e-12, row_sums, torch.ones_like(row_sums))
+                    row_sums = torch.where(
+                        row_sums > 1e-12, row_sums, torch.ones_like(row_sums)
+                    )
                     current_attention = current_attention / row_sums
-                    
 
                 # attention_weights[f"initial_state_after_{layer_key}"] = (
                 #     self._normalize_attention(current_attention)
@@ -661,6 +769,7 @@ class AttentionExtractorFactory:
             "litclam": CLAMAttentionExtractor,  # Support Lightning model names
             "litattentiondeepmil": AttentionDeepMILExtractor,  # Support Lightning model names
             "litgraphmil": GraphMILAttentionExtractor,  # Support Lightning model names
+            "lithead4type": Head4TypeAttentionExtractor,
         }
 
         if model.__class__.__name__.lower() in extractors:

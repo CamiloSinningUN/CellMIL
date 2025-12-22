@@ -65,7 +65,9 @@ class CellGNNMILDataset(InMemoryDataset):
         roi_folder: Optional[Path] = None,
         max_workers: int = 8,
         transforms: Optional[TransformPipeline | Transform] = None,
-        label_transforms: Optional[Union[LabelTransform, LabelTransformPipeline]] = None,
+        label_transforms: Optional[
+            Union[LabelTransform, LabelTransformPipeline]
+        ] = None,
         transform: Optional[Callable[[Data], Data]] = None,
         pre_transform: Optional[Callable[[Data], Data]] = None,
         pre_filter: Optional[Callable[[Data], bool]] = None,
@@ -863,14 +865,18 @@ class CellGNNMILDataset(InMemoryDataset):
             and data.slide_name in self.labels
         ):
             label = self.labels[data.slide_name]
-            
+
             # Apply label transforms if provided
             if self.label_transforms is not None:
                 labels_dict = {data.slide_name: label}
                 transformed = self.label_transforms.transform_labels(labels_dict)
                 label = transformed[data.slide_name]
-            
-            data.y = torch.tensor([label], dtype=torch.long) if isinstance(label, int) else label
+
+            data.y = (
+                torch.tensor([label], dtype=torch.long)
+                if isinstance(label, int)
+                else label
+            )
 
         # Note: Transform application is now handled by subsets to allow
         # different transforms per fold without contamination
@@ -893,8 +899,11 @@ class CellGNNMILDataset(InMemoryDataset):
         Raises:
             ValueError: If any index is out of range
         """
+        # Allow empty indices for validation-less training (e.g., final model on all data)
         if not indices:
-            raise ValueError("Indices list cannot be empty")
+            subset = SubsetCellGNNMILDataset(self, [])
+            logger.info("Created empty GNN subset (0 samples)")
+            return subset
 
         max_idx = len(self) - 1
         invalid_indices = [idx for idx in indices if idx < 0 or idx > max_idx]
@@ -917,7 +926,9 @@ class CellGNNMILDataset(InMemoryDataset):
         train_indices: List[int],
         val_indices: List[int],
         transforms: Optional[Union[TransformPipeline, Transform]] = None,
-        label_transforms: Optional[Union[LabelTransform, LabelTransformPipeline]] = None,
+        label_transforms: Optional[
+            Union[LabelTransform, LabelTransformPipeline]
+        ] = None,
     ) -> Tuple["SubsetCellGNNMILDataset", "SubsetCellGNNMILDataset"]:
         """
         Create train and validation datasets with transforms fitted only on training data.
@@ -941,8 +952,7 @@ class CellGNNMILDataset(InMemoryDataset):
         """
         if not train_indices:
             raise ValueError("train_indices cannot be empty")
-        if not val_indices:
-            raise ValueError("val_indices cannot be empty")
+        # Allow empty val_indices for training final model on all data
 
         # Validate indices
         max_idx = len(self) - 1
@@ -1024,23 +1034,31 @@ class CellGNNMILDataset(InMemoryDataset):
         # Store transforms on individual subset datasets, not parent dataset
         train_dataset.transforms = transforms
         val_dataset.transforms = transforms
-        
+
         # Fit label transforms on training labels only
         if label_transforms is not None:
             from ..transforms import FittableLabelTransform
-            
+
             # Get training labels
-            train_labels = {self.slides[train_indices[i]]: self.labels[self.slides[train_indices[i]]] 
-                           for i in range(len(train_indices))}
-            
+            train_labels = {
+                self.slides[train_indices[i]]: self.labels[
+                    self.slides[train_indices[i]]
+                ]
+                for i in range(len(train_indices))
+            }
+
             # Fit label transforms on training data
             if isinstance(label_transforms, FittableLabelTransform):
                 label_transforms.fit(train_labels)
-                logger.info(f"Fitted label transform on {len(train_labels)} training labels")
+                logger.info(
+                    f"Fitted label transform on {len(train_labels)} training labels"
+                )
             elif isinstance(label_transforms, LabelTransformPipeline):
                 label_transforms.fit(train_labels)
-                logger.info(f"Fitted label transform pipeline on {len(train_labels)} training labels")
-            
+                logger.info(
+                    f"Fitted label transform pipeline on {len(train_labels)} training labels"
+                )
+
             # Apply to parent dataset (shared by both train and val subsets)
             self.label_transforms = label_transforms
 
@@ -1052,10 +1070,31 @@ class CellGNNMILDataset(InMemoryDataset):
 
         return train_dataset, val_dataset
 
+    def get_config(self) -> dict[str, Any]:
+        """Get dataset configuration as a dictionary."""
+        config: dict[str, Any] = {
+            "dataset_type": self.__class__.__name__,
+            "label": str(self.label),
+            "extractor": str(self.extractor),
+            "graph_creator": str(self.graph_creator),
+            "segmentation_model": str(self.segmentation_model),
+            "split": self.split,
+            "cell_type": self.cell_type,
+            "return_cell_types": self.return_cell_types,
+            "centroid": self.centroid,
+        }
+        
+        if self.cell_types_to_keep_indices is not None:
+            config["cell_types_to_keep_indices"] = self.cell_types_to_keep_indices
+        if self.roi_folder is not None:
+            config["roi_folder"] = str(self.roi_folder)
+        
+        return config
+
     def get_num_labels(self) -> int:
         """
         Get the number of unique labels in the dataset.
-        
+
         Note: For survival prediction tasks, this returns 0 as there are no discrete classes.
         """
         if hasattr(self, "labels") and self.labels:

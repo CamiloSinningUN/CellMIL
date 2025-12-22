@@ -13,6 +13,7 @@ from torch.utils.data import Dataset, DataLoader
 
 from .extractor import Extractor
 from cellmil.utils import logger
+from cellmil.utils.stain_normalization import macenko_normalization
 from cellmil.interfaces import FeatureExtractorConfig
 from cellmil.interfaces.FeatureExtractorConfig import FeatureExtractionType, ExtractorType
 from .extractor import MorphologicalExtractor, TopologicalExtractor, EmbeddingExtractor
@@ -40,6 +41,7 @@ class FeatureExtractor:
 
         # TODO: Make configurable
         self.parallel = True
+        self.stain_normalization = True
         self.test = False
         # TODO: -----
 
@@ -156,6 +158,7 @@ class FeatureExtractor:
                         "patch_overlap": self.patch_overlap,
                         "extractor_name": str(self.config.extractor),
                         "patched_slide_path": str(self.config.patched_slide_path),
+                        "stain_normalization": self.stain_normalization,
                     }
             
             total_tasks = len(self.cells)
@@ -451,6 +454,7 @@ class FeatureExtractor:
         extractor_name = item["extractor_name"]  # type: ignore
         patched_slide_path = Path(item.get("patched_slide_path", ""))  # type: ignore
         patch_overlap = item.get("patch_overlap", 0)  # type: ignore
+        stain_normalization = item.get("stain_normalization", False)  # type: ignore
 
         # Use per-process extractor if available to avoid re-initialization overhead
         global _PROCESS_EXTRACTOR
@@ -498,6 +502,12 @@ class FeatureExtractor:
             # Use pre-extracted patch
             row, col = cell["patch_coordinates"]
             patch = FeatureExtractor._load_patch(patched_slide_path, row, col)
+            
+            # Apply stain normalization if enabled
+            if stain_normalization:
+                normalized_patches, _, _ = macenko_normalization([patch])
+                if normalized_patches is not None: # type: ignore
+                    patch = normalized_patches[0]
 
             x_global = int(
                 row * patch_size
