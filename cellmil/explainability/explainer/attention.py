@@ -121,6 +121,7 @@ class Attention:
             cell_data_path,
             cell_indices,
             cell_coordinates,
+            cell_types_tensor=cell_types_tensor,
             **kwargs,
         )
 
@@ -195,6 +196,9 @@ class Attention:
 
         logger.info("Creating visualizations based on configuration...")
         logger.info(f"Visualization mode: {self.config.visualization_mode}")
+        
+        # Extract cell_types_tensor from kwargs if provided
+        cell_types_tensor = kwargs.get('cell_types_tensor', None)
 
         visualization_files: dict[str, List[Path]] = {}
 
@@ -251,6 +255,7 @@ class Attention:
                     graph_data,
                     self.config.output_path / "graphs",
                     cell_coordinates,
+                    cell_types_tensor,  
                 )
                 visualization_files["graphs"] = graph_files
                 logger.info(f"Created {len(graph_files)} graph visualization files")

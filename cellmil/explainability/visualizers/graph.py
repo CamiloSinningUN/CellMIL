@@ -33,6 +33,7 @@ class AttentionGraphVisualizer:
         graph_data: Data,
         output_path: Path,
         cell_coordinates: Optional[Dict[int, Tuple[float, float]]] = None,
+        cell_types_tensor: Optional[torch.Tensor] = None,
     ) -> List[Path]:
         """
         Create graph visualizations for GraphMIL attention weights.
@@ -42,6 +43,7 @@ class AttentionGraphVisualizer:
             graph_data: PyTorch Geometric Data object with graph structure
             output_path: Directory to save visualization files
             cell_coordinates: Optional mapping from node_id to (x, y) coordinates
+            cell_types_tensor: Optional cell types tensor for cell type visualization
 
         Returns:
             List of paths to created visualization files
@@ -117,6 +119,15 @@ class AttentionGraphVisualizer:
         #         G, pos, gnn_attentions, pooling_attentions, edge_index, output_path
         #     )
         #     created_files.extend(combined_files)
+
+        # Cell type visualization
+        if self.config.visualize_cell_types and cell_types_tensor is not None:
+            cell_type_file = self._create_cell_type_plot(
+                G, pos, cell_types_tensor, output_path
+            )
+            if cell_type_file:
+                created_files.append(cell_type_file)
+                logger.info(f"Created cell type visualization: {cell_type_file}")
 
         logger.info(
             f"Created {len(created_files)} visualization files in {output_path}"
@@ -926,4 +937,144 @@ class AttentionGraphVisualizer:
 
         except Exception as e:
             logger.error(f"Error creating Plotly combined plot: {e}")
+            return None
+
+    def _create_cell_type_plot(
+        self,
+        G: nx.Graph,
+        pos: Dict[int, Tuple[float, float]],
+        cell_types_tensor: torch.Tensor,
+        output_path: Path,
+    ) -> Optional[Path]:
+        """Create interactive Plotly plot colored by cell types."""
+        try:
+            logger.info("Creating cell type visualization")
+
+            # Get cell type indices (argmax of one-hot encoding)
+            if cell_types_tensor.dim() == 2:
+                cell_type_indices = cell_types_tensor.argmax(dim=1).cpu().numpy() # type: ignore
+            else:
+                cell_type_indices = cell_types_tensor.cpu().numpy() # type: ignore
+
+            # Define cell type names and colors
+            cell_type_names = [
+                "Neoplastic",
+                "Inflammatory",
+                "Connective",
+                "Dead",
+                "Epithelial",
+            ]
+            cell_type_colors = [
+                "rgb(231, 76, 60)",  # Red - Neoplastic
+                "rgb(241, 196, 15)",  # Yellow - Inflammatory
+                "rgb(52, 152, 219)",  # Blue - Connective
+                "rgb(46, 204, 113)",  # Green - Epithelial
+                "rgb(149, 165, 166)",  # Gray - Dead
+            ]
+
+            # Create edge traces
+            edge_x: list[float | None] = []
+            edge_y: list[float | None] = []
+            for edge in G.edges():  # type: ignore
+                x0, y0 = pos[edge[0]]
+                x1, y1 = pos[edge[1]]
+                edge_x.extend([x0, x1, None])
+                edge_y.extend([y0, y1, None])
+
+            edge_trace = go.Scatter(
+                x=edge_x,
+                y=edge_y,
+                line=dict(width=0.5, color="rgba(150, 150, 150, 0.2)"),
+                hoverinfo="none",
+                mode="lines",
+                showlegend=False,
+            )
+
+            # Create node traces grouped by cell type
+            traces = [edge_trace]
+
+            for cell_type_idx in range(len(cell_type_names)):
+                # Get nodes of this cell type
+                mask = cell_type_indices == cell_type_idx
+                if not mask.any():
+                    continue
+
+                node_indices = np.where(mask)[0]
+                node_x = [pos[int(i)][0] for i in node_indices if int(i) in pos]
+                node_y = [pos[int(i)][1] for i in node_indices if int(i) in pos]
+
+                if len(node_x) == 0:
+                    continue
+
+                node_trace = go.Scatter(
+                    x=node_x,
+                    y=node_y,
+                    mode="markers",
+                    name=cell_type_names[cell_type_idx],
+                    hoverinfo="text",
+                    text=[
+                        f"{cell_type_names[cell_type_idx]}<br>Node {i}"
+                        for i in node_indices
+                        if int(i) in pos
+                    ],
+                    marker=dict(
+                        size=3,
+                        color=cell_type_colors[cell_type_idx],
+                        line=dict(width=0.5, color="rgba(255, 255, 255, 0.5)"),
+                        opacity=0.8,
+                    ),
+                    showlegend=True,
+                )
+                traces.append(node_trace)
+
+            # Create figure
+            fig = go.Figure(
+                data=traces,
+                layout=go.Layout(
+                    title=dict(
+                        text="Cell Type Distribution",
+                        font=dict(size=20, color="black", family="Arial Black"),
+                        x=0.5,
+                    ),
+                    showlegend=True,
+                    legend=dict(
+                        x=1.02,
+                        y=1,
+                        xanchor="left",
+                        yanchor="top",
+                        bgcolor="rgba(255, 255, 255, 0.9)",
+                        bordercolor="rgba(0, 0, 0, 0.2)",
+                        borderwidth=1,
+                        font=dict(size=12, color="black"),
+                    ),
+                    hovermode="closest",
+                    margin=dict(b=30, l=20, r=150, t=60),
+                    xaxis=dict(
+                        showgrid=False,
+                        zeroline=False,
+                        showticklabels=False,
+                        showline=False,
+                    ),
+                    yaxis=dict(
+                        showgrid=False,
+                        zeroline=False,
+                        showticklabels=False,
+                        autorange="reversed",
+                        showline=False,
+                    ),
+                    plot_bgcolor="white",
+                    paper_bgcolor="white",
+                    font=dict(color="black"),
+                ),
+            )
+
+            # Save plot
+            plot_path = output_path / "cell_types_plotly.html"
+            fig.write_html(str(plot_path))  # type: ignore
+
+            logger.info(f"Saved cell type plot to {plot_path}")
+            return plot_path
+
+        except Exception as e:
+            logger.error(f"Error creating cell type plot: {e}")
             return None

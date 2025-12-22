@@ -28,7 +28,7 @@ class AttentionAggregation(str, Enum):
 
 class Normalization(str, Enum):
     """Attention normalization methods."""
-    
+
     min_max = "min_max"  # Min-Max normalization to [0, 1]
     z_score = "z_score"  # Z-score standardization (mean=0, std=1)
     robust = "robust"  # Robust scaling using median and IQR
@@ -89,6 +89,10 @@ class ExplainerCreatorConfig(BaseModel):
     normalization: Normalization = Field(
         default=Normalization.min_max,
         description="Type of normalization to apply to attention weights",
+    )
+    visualize_cell_types: bool = Field(
+        default=False,
+        description="Whether to create cell type visualization (graph colored by cell types)",
     )
 
     @field_validator("method")
