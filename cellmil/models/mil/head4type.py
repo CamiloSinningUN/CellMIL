@@ -289,7 +289,7 @@ class LitHead4Type(LitGeneral):
             An instance of LitAttentionDeepMIL.
         """
 
-        checkpoint = torch.load(checkpoint_path, map_location=map_location)  # type: ignore
+        checkpoint = torch.load(checkpoint_path, map_location=map_location, weights_only=False)  # type: ignore
         hparams = checkpoint.get("hyper_parameters", {})
 
         model_class = Head4Type
@@ -309,7 +309,7 @@ class LitHead4Type(LitGeneral):
             model.parameters(), lr=hparams.get("optimizer_lr", 1e-3)
         )
 
-        loss_fn = getattr(torch.nn, hparams.get("loss", "CrossEntropyLoss"))()
+        loss_fn = hparams.get("loss", "CrossEntropyLoss")
 
         lit_model = cls(
             model=model,

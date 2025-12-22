@@ -7,7 +7,7 @@ multiple MIL model types including CLAM, AttentionDeepMIL, and GraphMIL.
 
 import torch
 from pathlib import Path
-from typing import Dict, Any, List, Union
+from typing import Dict, Any, List, Union, Optional
 import json
 import lightning as Pl
 
@@ -24,6 +24,7 @@ from cellmil.explainability.visualizers.heatmap import AttentionHeatmapVisualize
 from cellmil.explainability.visualizers.graph import AttentionGraphVisualizer
 from cellmil.utils import logger
 from torch_geometric.data import Data  # type: ignore
+from cellmil.datamodels.datasets.utils import cell_types_to_tensor
 
 
 class Attention:
@@ -54,6 +55,7 @@ class Attention:
         cell_data_path: Path,
         cell_indices: Dict[int, int],
         cell_coordinates: Dict[int, tuple[float, float]],
+        cell_types: Optional[Dict[int, int]] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """
@@ -65,6 +67,7 @@ class Attention:
             cell_data_path: Path to cell detection JSON file (for spatial visualization)
             cell_indices: Mapping from cell_id to tensor index
             cell_coordinates: Node coordinates for graph visualization
+            cell_types_tensor: Optional cell types tensor for Head4Type models
             **kwargs: Additional arguments specific to model types
 
         Returns:
@@ -93,8 +96,21 @@ class Attention:
         # Create output directory
         self.config.output_path.mkdir(parents=True, exist_ok=True)
 
+        if cell_types is None:
+            raise ValueError("cell_types must be provided for Head4Type models")
+
         # Extract attention weights
-        attention_result = self._extract_attention(model, data)
+        cell_types_tensor = cell_types_to_tensor(cell_types, cell_indices)
+        # One-hot encoded
+        # TODO: Remove after debugging
+        cell_type_counts = cell_types_tensor.sum(dim=0)
+        for idx, count in enumerate(cell_type_counts):
+            logger.info(f"Cell type {idx}: {int(count)} cells")
+        
+        # cell type tensor logging
+        logger.info(f"Cell types tensor shape: {cell_types_tensor.shape}")
+        
+        attention_result = self._extract_attention(model, data, cell_types_tensor)
         logger.info(
             f"Extracted attention types: {list(attention_result.attention_weights.keys())}"
         )
@@ -127,7 +143,10 @@ class Attention:
         return results
 
     def _extract_attention(
-        self, model: Any, data: Union[torch.Tensor, Any]
+        self,
+        model: Any,
+        data: Union[torch.Tensor, Any],
+        cell_types_tensor: Optional[torch.Tensor] = None,
     ) -> AttentionResult:
         """Extract attention weights using appropriate extractor."""
 
@@ -139,7 +158,13 @@ class Attention:
             logger.info(f"Extractor created: {extractor.__class__.__name__}")
 
             logger.info("Extracting attention weights from model...")
-            result = extractor.extract(model, data)
+            # Pass cell_types_tensor for models that need it (e.g., Head4Type)
+            if cell_types_tensor is not None:
+                result = extractor.extract(
+                    model, data, cell_types_tensor=cell_types_tensor
+                )
+            else:
+                result = extractor.extract(model, data)
             logger.info(
                 f"Attention extraction successful - found {len(result.attention_weights)} attention types"
             )
@@ -204,14 +229,18 @@ class Attention:
                 # Convert tensor to Data object if necessary
                 graph_data = data
                 if isinstance(data, torch.Tensor):
-                    logger.info("Converting tensor input to graph format (nodes only, no edges)")
+                    logger.info(
+                        "Converting tensor input to graph format (nodes only, no edges)"
+                    )
                     # Create a Data object with nodes but no edges
                     node_features = data.squeeze(0) if data.dim() > 2 else data
                     graph_data = Data(x=node_features)
                     # Create empty edge_index for no edges
                     graph_data.edge_index = torch.empty((2, 0), dtype=torch.long)
-                    graph_data.num_nodes = graph_data.x.shape[0] # type: ignore
-                    logger.info(f"Created graph with {graph_data.num_nodes} nodes and 0 edges")
+                    graph_data.num_nodes = graph_data.x.shape[0]  # type: ignore
+                    logger.info(
+                        f"Created graph with {graph_data.num_nodes} nodes and 0 edges"
+                    )
                 else:
                     graph_data = data
 
@@ -239,8 +268,7 @@ class Attention:
                 logger.info("Creating heatmap visualizations...")
                 heatmap_visualizer = AttentionHeatmapVisualizer(self.config)
                 heatmap_files = heatmap_visualizer.create_visualization(
-                    attention_result,
-                    self.config.output_path / "heatmaps"
+                    attention_result, self.config.output_path / "heatmaps"
                 )
                 visualization_files["heatmaps"] = heatmap_files
                 logger.info(f"Created {len(heatmap_files)} heatmap files")
@@ -254,7 +282,6 @@ class Attention:
         )
 
         return visualization_files
-
 
     def _save_attention_metadata(self, attention_result: AttentionResult) -> List[Path]:
         """Save attention weights and metadata to files."""

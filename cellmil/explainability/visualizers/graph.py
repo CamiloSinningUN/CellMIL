@@ -72,7 +72,7 @@ class AttentionGraphVisualizer:
 
         # Create visualizations for different attention types
         # More flexible filtering to handle different naming conventions
-        
+
         gnn_attentions = {
             k: v
             for k, v in attention_result.attention_weights.items()
@@ -89,7 +89,9 @@ class AttentionGraphVisualizer:
                 for pool_pattern in [
                     "pooling_attention",
                     "random_walk",
-                    "mean_attention"
+                    "mean_attention",
+                    "head_",  # Include individual Head4Type heads
+                    "class_",  # Include individual CLAM classes
                     # "initial_state",
                 ]
             )
@@ -182,14 +184,22 @@ class AttentionGraphVisualizer:
         created_files: list[Path] = []
 
         for attention_key, attention_weights in pooling_attentions.items():
-            plotly_file = self._create_plotly_node_plot(
+            plotly_file_robust = self._create_plotly_node_plot(
                 G, pos, attention_weights, attention_key, output_path, robust_color=True
             )
-            plotly_file = self._create_plotly_node_plot(
-                G, pos, attention_weights, attention_key, output_path, robust_color=False
+            if plotly_file_robust:
+                created_files.append(plotly_file_robust)
+
+            plotly_file_standard = self._create_plotly_node_plot(
+                G,
+                pos,
+                attention_weights,
+                attention_key,
+                output_path,
+                robust_color=False,
             )
-            if plotly_file:
-                created_files.append(plotly_file)
+            if plotly_file_standard:
+                created_files.append(plotly_file_standard)
 
         logger.info(
             f"Created {len(created_files)} pooling attention visualization files in {output_path}"
@@ -361,7 +371,7 @@ class AttentionGraphVisualizer:
         attention_weights: torch.Tensor,
         attention_key: str,
         output_path: Path,
-        robust_color: bool = False
+        robust_color: bool = False,
     ) -> Optional[Path]:
         """Create interactive Plotly plot for node-based attention."""
         try:
@@ -453,7 +463,9 @@ class AttentionGraphVisualizer:
                     normalized_attention = (node_attention - min_attention) / (
                         max_attention - min_attention
                     )
-                    node_sizes = 1 + 10 * normalized_attention  # Sizes from 4 to 12 (much smaller)
+                    node_sizes = (
+                        1 + 10 * normalized_attention
+                    )  # Sizes from 4 to 12 (much smaller)
                 else:
                     node_sizes = 6  # Smaller default size
             else:
@@ -466,13 +478,16 @@ class AttentionGraphVisualizer:
 
                 # Create robust color values that compress outliers
                 robust_colors = np.where(
-                    node_attention <= p1, 0,  # Bottom 1% get minimum color
+                    node_attention <= p1,
+                    0,  # Bottom 1% get minimum color
                     np.where(
-                        node_attention >= p99, 1,  # Top 1% get maximum color
-                        (node_attention - p1) / (p99 - p1)  # Middle 98% get proportional scaling
-                    )
+                        node_attention >= p99,
+                        1,  # Top 1% get maximum color
+                        (node_attention - p1)
+                        / (p99 - p1),  # Middle 98% get proportional scaling
+                    ),
                 )
-                
+
                 # Set custom color range to make the visualization more interpretable
                 color_range = [p1, p99]
             else:
@@ -490,8 +505,12 @@ class AttentionGraphVisualizer:
                     color=robust_colors,
                     colorscale="Plasma",  # Beautiful plasma colorscale for black background
                     showscale=True,
-                    cmin=0 if isinstance(node_color, np.ndarray) and robust_color else None,
-                    cmax=1 if isinstance(node_color, np.ndarray) and robust_color else None,
+                    cmin=0
+                    if isinstance(node_color, np.ndarray) and robust_color
+                    else None,
+                    cmax=1
+                    if isinstance(node_color, np.ndarray) and robust_color
+                    else None,
                     colorbar=dict(
                         title=dict(
                             text="Attention Weight", font=dict(size=14, color="black")
@@ -499,12 +518,18 @@ class AttentionGraphVisualizer:
                         tickfont=dict(color="black"),
                         bgcolor="rgba(255, 255, 255, 0.0)",
                         # Add custom tick labels to show the actual range
-                        tickvals=[0, 0.5, 1] if isinstance(node_color, np.ndarray) and robust_color else None,
+                        tickvals=[0, 0.5, 1]
+                        if isinstance(node_color, np.ndarray) and robust_color
+                        else None,
                         ticktext=[
                             f"{color_range[0]:.3f}" if color_range else "0",
-                            f"{(color_range[0] + color_range[1])/2:.3f}" if color_range else "0.5", 
-                            f"{color_range[1]:.3f}" if color_range else "1"
-                        ] if isinstance(node_color, np.ndarray) and color_range else None,
+                            f"{(color_range[0] + color_range[1]) / 2:.3f}"
+                            if color_range
+                            else "0.5",
+                            f"{color_range[1]:.3f}" if color_range else "1",
+                        ]
+                        if isinstance(node_color, np.ndarray) and color_range
+                        else None,
                     ),
                     line=dict(
                         width=0.5, color="rgba(255, 255, 255, 0.4)"
@@ -564,7 +589,10 @@ class AttentionGraphVisualizer:
             )
 
             # Save plot
-            plot_path = output_path / f"{attention_key}_{'robust' if robust_color else 'standard'}_plotly.html"
+            plot_path = (
+                output_path
+                / f"{attention_key}_{'robust' if robust_color else 'standard'}_plotly.html"
+            )
             fig.write_html(str(plot_path))  # type: ignore
 
             logger.info(f"Saved Plotly node plot to {plot_path}")
