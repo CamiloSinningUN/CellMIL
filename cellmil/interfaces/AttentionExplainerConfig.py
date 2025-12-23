@@ -4,20 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 
-class ExplainMethod(str, Enum):
-    """Type for explainability methods."""
-
-    attention = "attention"
-
-    @classmethod
-    def values(cls):
-        return [member.value for member in cls]
-
-    def __str__(self):
-        return self.value
-
-
-class AttentionAggregation(str, Enum):
+class Aggregation(str, Enum):
     """Attention aggregation methods for GraphMIL."""
 
     pooling_only = "pooling_only"  # Only pooling attention
@@ -42,21 +29,19 @@ class VisualizationMode(str, Enum):
 
     geojson = "geojson"  # GeoJSON for pathology viewers (QuPath, etc.)
     graph = "graph"  # Interactive graph with attention edges
-    heatmap = "heatmap"  # Attention heatmap overlay
     all = "all"  # Generate all visualization types
 
 
-class ExplainerCreatorConfig(BaseModel):
-    """Configuration for explainability methods."""
-
-    method: ExplainMethod = Field(..., description="Explainability method to use")
+class AttentionExplainerConfig(BaseModel):
+    """Configuration for Attention explainability method."""
+    
     output_path: Path = Field(
         ..., description="Path where the explanations will be saved"
     )
 
     # Attention-specific configurations
-    attention_aggregation: AttentionAggregation = Field(
-        default=AttentionAggregation.pooling_only,
+    attention_aggregation: Aggregation = Field(
+        default=Aggregation.pooling_only,
         description="How to aggregate attention for GraphMIL models",
     )
     gnn_layer_index: Optional[int] = Field(
@@ -94,14 +79,6 @@ class ExplainerCreatorConfig(BaseModel):
         default=False,
         description="Whether to create cell type visualization (graph colored by cell types)",
     )
-
-    @field_validator("method")
-    def validate_method(cls, v: str) -> str:
-        if v not in ExplainMethod.values():
-            raise ValueError(
-                f"Unsupported explainability method: {v}. Supported methods are: {ExplainMethod.values()}"
-            )
-        return v
 
     @field_validator("gnn_layer_index")
     def validate_gnn_layer_index(cls, v: Optional[int]) -> Optional[int]:
