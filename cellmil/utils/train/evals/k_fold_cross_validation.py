@@ -237,18 +237,11 @@ class KFoldCrossValidation:
 
         # Determine best fold
         if "c_index" in aggregated_report:
-            metric_key = "c_index"
+            metric_values = [r.get("c_index", 0) for r in fold_reports]
         else:
-            metric_key = "macro avg"
+            metric_values = [r.get("macro avg", {}).get("f1-score", 0) for r in fold_reports]
 
-        best_fold_idx = int(
-            np.argmax(
-                [
-                    r.get(metric_key, r.get("macro avg", {}).get("f1-score", 0))
-                    for r in fold_reports
-                ]
-            )
-        )
+        best_fold_idx = int(np.argmax(metric_values))
 
         # Calculate average best epoch
         avg_best_epoch = storage.get_average_best_epoch()
@@ -706,7 +699,7 @@ class KFoldCrossValidation:
     def _train_final_model(
         self,
         name: str,
-        lit_model_creator: Callable[[int], Pl.LightningModule],
+        lit_model_creator: Callable[[int, bool], Pl.LightningModule],
         dataset: Union[
             CellMILDataset, CellGNNMILDataset, PatchGNNMILDataset, PatchMILDataset
         ],
@@ -757,7 +750,7 @@ class KFoldCrossValidation:
                 num_workers=0,
             )
             sample_data = dataset[0]
-            model = lit_model_creator(sample_data.x.shape[1])  # type: ignore
+            model = lit_model_creator(sample_data.x.shape[1], use_lr_scheduler=False)  # type: ignore
         else:
             dataloader = DataLoaderTorch(
                 train_dataset,  # type: ignore
@@ -766,8 +759,7 @@ class KFoldCrossValidation:
                 num_workers=0,
             )
             sample_data = dataset[0]
-            model = lit_model_creator(sample_data[0].shape[1])
-
+            model = lit_model_creator(sample_data[0].shape[1], use_lr_scheduler=False)
         # Setup checkpoint callback
         is_surv = is_survival_model(model)
         monitor_metric = "train/c_index" if is_surv else "train/f1"

@@ -72,9 +72,9 @@ def preprocess_df(df: pd.DataFrame, task: str) -> pd.DataFrame:
     df = df.dropna(subset=[task]) # type: ignore
     return df
 
-def get_lit_model_creator(model: str, task: str, n_bins: int, feature: str, df: pd.DataFrame, regularization: bool) -> Callable[[int], Pl.LightningModule]:
+def get_lit_model_creator(model: str, task: str, n_bins: int, feature: str, df: pd.DataFrame, regularization: bool) -> Callable[[int, bool], Pl.LightningModule]:
     if model == "ABMIL":
-        def lit_model_creator(input_dim: int) -> Pl.LightningModule:
+        def lit_model_creator(input_dim: int, use_lr_scheduler = True) -> Pl.LightningModule:
             model = AttentionDeepMIL(
                 embed_dim=input_dim,
                 size_arg=[256, 128] if feature != "RESNET" and feature != "GIGAPATH" else [500, 128],
@@ -97,7 +97,7 @@ def get_lit_model_creator(model: str, task: str, n_bins: int, feature: str, df: 
                     alpha=complementary_frequencies(df, task)[1], 
                     gamma=2.0
                 ),
-                lr_scheduler=ReduceLROnPlateau(optimizer, mode="min", patience=5, factor=0.8),
+                lr_scheduler=ReduceLROnPlateau(optimizer, mode="min", patience=5, factor=0.8) if use_lr_scheduler else None,
                 use_aem= True if regularization else False,
                 subsampling=0.8 if regularization else 1.0
             )
@@ -108,7 +108,7 @@ def get_lit_model_creator(model: str, task: str, n_bins: int, feature: str, df: 
         if feature in ["RESNET", "GIGAPATH"]:
             raise ValueError("HEAD4TYPE model is not compatible with RESNET or GIGAPATH features.")
         
-        def lit_model_creator(input_dim: int) -> Pl.LightningModule:
+        def lit_model_creator(input_dim: int, use_lr_scheduler = True) -> Pl.LightningModule:
             model = Head4Type(
                 embed_dim=input_dim, 
                 size_arg=[256, 128], 
@@ -134,7 +134,7 @@ def get_lit_model_creator(model: str, task: str, n_bins: int, feature: str, df: 
                     mode="min", 
                     patience=5, 
                     factor=0.8
-                ),
+                ) if use_lr_scheduler else None,
                 use_aem= True if regularization else False,
                 subsampling=0.8 if regularization else 1.0
             )
@@ -143,7 +143,7 @@ def get_lit_model_creator(model: str, task: str, n_bins: int, feature: str, df: 
         
         
     elif model == "CLAM":
-        def lit_model_creator(input_dim: int) -> Pl.LightningModule:
+        def lit_model_creator(input_dim: int, use_lr_scheduler = True) -> Pl.LightningModule:
             model = CLAM_SB(
                 embed_dim=input_dim,
                 size_arg="small", 
@@ -169,7 +169,7 @@ def get_lit_model_creator(model: str, task: str, n_bins: int, feature: str, df: 
                     mode="min",
                     patience=5,
                     factor=0.8
-                ),
+                ) if use_lr_scheduler else None,
                 use_aem= True if regularization else False,
                 subsampling=0.8 if regularization else 1.0
             )
