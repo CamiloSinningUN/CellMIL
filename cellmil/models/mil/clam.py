@@ -26,7 +26,7 @@ from .utils import EarlyStopping, Accuracy_Logger, AEM
 from cellmil.utils import logger
 from cellmil.utils.train.losses import NegativeLogLikelihoodSurvLoss
 from cellmil.utils.train.metrics import ConcordanceIndex, BrierScore
-from topk.svm import SmoothTop1SVM # type: ignore
+from topk.svm import SmoothTop1SVM  # type: ignore
 
 
 class Attn_Net(nn.Module):
@@ -166,10 +166,12 @@ class CLAM_SB(nn.Module):
         dropout: bool = False,
         k_sample: int = 8,
         n_classes: int = 2,
-        instance_loss_fn: nn.Module = SmoothTop1SVM(n_classes=2).cuda() if torch.cuda.is_available() else SmoothTop1SVM(n_classes=2),
+        instance_loss_fn: nn.Module = SmoothTop1SVM(n_classes=2).cuda()
+        if torch.cuda.is_available()
+        else SmoothTop1SVM(n_classes=2),
         subtyping: bool = False,
         embed_dim: int = 1024,
-        temperature: float = 1.0
+        temperature: float = 1.0,
     ):
         super().__init__()  # type: ignore
         self.size_dict = {"small": [embed_dim, 512, 256], "big": [embed_dim, 512, 384]}
@@ -604,7 +606,7 @@ class CLAMTrainerLegacy:
         use_wandb: bool = True,
         scale_attention_grads_by_bag: bool = False,
         attn_ref_bag_size: int = 100000,
-        attn_alpha: float = 0.5
+        attn_alpha: float = 0.5,
     ):
         self.model = model
         self.optimizer = optimizer
@@ -730,10 +732,10 @@ class CLAMTrainerLegacy:
 
         # Create progress bar for training
         train_pbar = tqdm(
-            enumerate(train_loader), 
+            enumerate(train_loader),
             total=len(train_loader),
             desc=f"Epoch {epoch} - Training",
-            leave=False
+            leave=False,
         )
 
         for batch_idx, (data, label) in train_pbar:
@@ -790,12 +792,14 @@ class CLAMTrainerLegacy:
             train_error += error
 
             # Update progress bar with current metrics
-            train_pbar.set_postfix({ # type: ignore
-                'Loss': f'{loss_value:.4f}',
-                'Inst_Loss': f'{instance_loss_value:.4f}',
-                'Avg_Loss': f'{train_loss/(batch_idx+1):.4f}',
-                'Error': f'{error:.4f}'
-            })
+            train_pbar.set_postfix(
+                {  # type: ignore
+                    "Loss": f"{loss_value:.4f}",
+                    "Inst_Loss": f"{instance_loss_value:.4f}",
+                    "Avg_Loss": f"{train_loss / (batch_idx + 1):.4f}",
+                    "Error": f"{error:.4f}",
+                }
+            )
 
             # backward pass
             total_loss.backward()
@@ -881,7 +885,7 @@ class CLAMTrainerLegacy:
             enumerate(val_loader),
             total=len(val_loader),
             desc=f"Epoch {epoch} - Validation",
-            leave=False
+            leave=False,
         )
 
         with torch.inference_mode():
@@ -915,12 +919,14 @@ class CLAMTrainerLegacy:
                 val_error += error
 
                 # Update progress bar with current metrics
-                val_pbar.set_postfix({ # type: ignore
-                    'Loss': f'{loss.item():.4f}',
-                    'Inst_Loss': f'{instance_loss_value:.4f}',
-                    'Avg_Loss': f'{val_loss/(batch_idx+1):.4f}',
-                    'Error': f'{error:.4f}'
-                })
+                val_pbar.set_postfix(
+                    {  # type: ignore
+                        "Loss": f"{loss.item():.4f}",
+                        "Inst_Loss": f"{instance_loss_value:.4f}",
+                        "Avg_Loss": f"{val_loss / (batch_idx + 1):.4f}",
+                        "Error": f"{error:.4f}",
+                    }
+                )
 
         val_error /= len(val_loader)
         val_loss /= len(val_loader)
@@ -1024,44 +1030,46 @@ class CLAMTrainerLegacy:
 
 
 class LitCLAM(Pl.LightningModule):
-    
     @staticmethod
     def _is_gated_attention(model: CLAM_MB | CLAM_SB) -> bool:
         """Check if model uses gated attention."""
-        if hasattr(model, 'attention_net'):
-            return any(isinstance(m, Attn_Net_Gated) for m in model.attention_net.modules())
+        if hasattr(model, "attention_net"):
+            return any(
+                isinstance(m, Attn_Net_Gated) for m in model.attention_net.modules()
+            )
         return True
-    
+
     @staticmethod
     def _get_size_args(model: CLAM_MB | CLAM_SB) -> list[int]:
         """Extract L and D parameters from attention network (size[1] and size[2])."""
-        if hasattr(model, 'attention_net'):
+        if hasattr(model, "attention_net"):
             for module in model.attention_net.modules():
                 if isinstance(module, Attn_Net_Gated):
                     # For gated attention: attention_a and attention_b are Sequential with Linear layers
                     linear_layer = module.attention_a[0]  # First layer is Linear
                     if isinstance(linear_layer, nn.Linear):
-                        l_dim = linear_layer.in_features   # size[1] 
+                        l_dim = linear_layer.in_features  # size[1]
                         d_dim = linear_layer.out_features  # size[2]
                         return [l_dim, d_dim]
                 elif isinstance(module, Attn_Net):
                     # For regular attention: module is Sequential with Linear layers
                     linear_layer = module.module[0]  # First layer is Linear
                     if isinstance(linear_layer, nn.Linear):
-                        l_dim = linear_layer.in_features   # size[1]
+                        l_dim = linear_layer.in_features  # size[1]
                         d_dim = linear_layer.out_features  # size[2]
                         return [l_dim, d_dim]
         return [512, 256]  # default
 
     def __init__(
-        self, 
+        self,
         model: CLAM_MB | CLAM_SB,
         optimizer: torch.optim.Optimizer,
         loss_slide: nn.Module = nn.CrossEntropyLoss(),
         weight_loss_slide: float = 0.7,
         lr_scheduler: LRScheduler | None = None,
+        subsampling: float = 1.0,
         use_aem: bool = False,
-        aem_weight_initial: float = 0.001,
+        aem_weight_initial: float = 0.0001,
         aem_weight_final: float = 0.0,
         aem_annealing_epochs: int = 50,
     ):
@@ -1071,14 +1079,15 @@ class LitCLAM(Pl.LightningModule):
         self.loss_slide = loss_slide
         self.weight_loss_slide = weight_loss_slide
         self.lr_scheduler = lr_scheduler
-        
+        self.subsampling = subsampling
+
         self.use_aem = use_aem
-        
+
         if self.use_aem:
             self.aem = AEM(
                 weight_initial=aem_weight_initial,
                 weight_final=aem_weight_final,
-                annealing_epochs=aem_annealing_epochs
+                annealing_epochs=aem_annealing_epochs,
             )
 
         # Save all hyperparameters including model config
@@ -1090,35 +1099,51 @@ class LitCLAM(Pl.LightningModule):
             "instance_loss_fn": model.instance_loss_fn.__class__.__name__,
             "k_sample": model.k_sample,
             "subtyping": model.subtyping,
-            "embed_dim": model.size_dict.get("small", [1024])[0] if hasattr(model, 'size_dict') else 1024,
-            "dropout": any(isinstance(m, nn.Dropout) for m in model.attention_net.modules()) if hasattr(model, 'attention_net') else False,
-            "temperature": model.temperature if hasattr(model, 'temperature') else 1.0
+            "embed_dim": model.size_dict.get("small", [1024])[0]
+            if hasattr(model, "size_dict")
+            else 1024,
+            "dropout": any(
+                isinstance(m, nn.Dropout) for m in model.attention_net.modules()
+            )
+            if hasattr(model, "attention_net")
+            else False,
+            "temperature": model.temperature if hasattr(model, "temperature") else 1.0,
         }
-        
-        self.save_hyperparameters({
-            **model_config,
-            "optimizer_class": optimizer.__class__.__name__,
-            "optimizer_lr": optimizer.param_groups[0]['lr'],
-            "loss_slide": loss_slide.__class__.__name__,
-            "weight_loss_slide": weight_loss_slide,
-            "lr_scheduler": lr_scheduler.__class__.__name__ if lr_scheduler else None,
-            "use_aem": use_aem,
-            "aem_weight_initial": aem_weight_initial,
-            "aem_weight_final": aem_weight_final,
-            "aem_annealing_epochs": aem_annealing_epochs
-        })
+
+        self.save_hyperparameters(
+            {
+                **model_config,
+                "optimizer_class": optimizer.__class__.__name__,
+                "optimizer_lr": optimizer.param_groups[0]["lr"],
+                "loss_slide": loss_slide.__class__.__name__,
+                "weight_loss_slide": weight_loss_slide,
+                "lr_scheduler": lr_scheduler.__class__.__name__
+                if lr_scheduler
+                else None,
+                "subsampling": subsampling,
+                "use_aem": use_aem,
+                "aem_weight_initial": aem_weight_initial,
+                "aem_weight_final": aem_weight_final,
+                "aem_annealing_epochs": aem_annealing_epochs,
+            }
+        )
         self._setup_metrics()
-        
+
         self.bag_size: int = 0
-    
+
     @classmethod
     def load_from_checkpoint(
-        cls, 
-        checkpoint_path: str | Path | IO[bytes], 
-        map_location: torch.device | str | int | Callable[[torch.UntypedStorage, str], torch.UntypedStorage | None] | dict[torch.device | str | int, torch.device | str | int] | None = None, 
-        hparams_file: str | Path | None = None, 
-        strict: bool | None = None, 
-        **kwargs: Any
+        cls,
+        checkpoint_path: str | Path | IO[bytes],
+        map_location: torch.device
+        | str
+        | int
+        | Callable[[torch.UntypedStorage, str], torch.UntypedStorage | None]
+        | dict[torch.device | str | int, torch.device | str | int]
+        | None = None,
+        hparams_file: str | Path | None = None,
+        strict: bool | None = None,
+        **kwargs: Any,
     ) -> Self:
         """
         Load a LitCLAM model from a checkpoint file.
@@ -1132,90 +1157,117 @@ class LitCLAM(Pl.LightningModule):
         Returns:
             LitCLAM: The loaded LitCLAM model.
         """
-        
-        checkpoint = torch.load(checkpoint_path, map_location=map_location, weights_only=False) # type: ignore
-        hparams = checkpoint.get('hyper_parameters', {})
-        
+
+        checkpoint = torch.load(
+            checkpoint_path, map_location=map_location, weights_only=False
+        )  # type: ignore
+        hparams = checkpoint.get("hyper_parameters", {})
+
         # Reconstruct model
-        model_class = CLAM_MB if hparams.get('model_class') == 'CLAM_MB' else CLAM_SB
+        model_class = CLAM_MB if hparams.get("model_class") == "CLAM_MB" else CLAM_SB
         model = model_class(
-            gate=hparams.get('gated', True),
-            size_arg=hparams.get('size_arg', 'small'),
-            dropout=hparams.get('dropout', False),
-            k_sample=hparams.get('k_sample', 8),
-            n_classes=hparams.get('n_classes', 2),
-            instance_loss_fn=SmoothTop1SVM(n_classes=2) if hparams.get('instance_loss_fn') == 'SmoothTop1SVM' else nn.CrossEntropyLoss(),
-            subtyping=hparams.get('subtyping', False),
-            embed_dim=hparams.get('embed_dim', 1024),
-            temperature=hparams.get('temperature', 1.0)
+            gate=hparams.get("gated", True),
+            size_arg=hparams.get("size_arg", "small"),
+            dropout=hparams.get("dropout", False),
+            k_sample=hparams.get("k_sample", 8),
+            n_classes=hparams.get("n_classes", 2),
+            instance_loss_fn=SmoothTop1SVM(n_classes=2)
+            if hparams.get("instance_loss_fn") == "SmoothTop1SVM"
+            else nn.CrossEntropyLoss(),
+            subtyping=hparams.get("subtyping", False),
+            embed_dim=hparams.get("embed_dim", 1024),
+            temperature=hparams.get("temperature", 1.0),
         )
-        
+
         # Reconstruct optimizer
-        optimizer_class = getattr(torch.optim, hparams.get('optimizer_class', 'Adam'))
-        optimizer = optimizer_class(model.parameters(), lr=hparams.get('optimizer_lr', 1e-4))
-        
+        optimizer_class = getattr(torch.optim, hparams.get("optimizer_class", "Adam"))
+        optimizer = optimizer_class(
+            model.parameters(), lr=hparams.get("optimizer_lr", 1e-4)
+        )
+
         # Reconstruct loss function
-        loss_slide = getattr(nn, hparams.get('loss_slide', 'CrossEntropyLoss'))()
-        
-        # Note: lr_scheduler is not reconstructed from checkpoint as it's typically 
+        loss_slide = getattr(nn, hparams.get("loss_slide", "CrossEntropyLoss"))()
+
+        # Note: lr_scheduler is not reconstructed from checkpoint as it's typically
         # created fresh when loading a model for further training or evaluation
-        
+
         lit_model = cls(
             model=model,
             optimizer=optimizer,
             loss_slide=loss_slide,
-            weight_loss_slide=hparams.get('weight_loss_slide', 0.7),
+            weight_loss_slide=hparams.get("weight_loss_slide", 0.7),
             lr_scheduler=None,  # Scheduler not restored from checkpoint
-            use_aem=hparams.get('use_aem', False),
-            aem_weight_initial=hparams.get('aem_weight_initial', 0.001),
-            aem_weight_final=hparams.get('aem_weight_final', 0.0),
-            aem_annealing_epochs=hparams.get('aem_annealing_epochs', 50)
+            subsampling=hparams.get("subsampling", 1.0),
+            use_aem=hparams.get("use_aem", False),
+            aem_weight_initial=hparams.get("aem_weight_initial", 0.001),
+            aem_weight_final=hparams.get("aem_weight_final", 0.0),
+            aem_annealing_epochs=hparams.get("aem_annealing_epochs", 50),
         )
-        
-        lit_model.load_state_dict(checkpoint['state_dict'], strict=strict if strict is not None else True)
+
+        lit_model.load_state_dict(
+            checkpoint["state_dict"], strict=strict if strict is not None else True
+        )
         return lit_model
-        
+
     def _setup_metrics(self):
-        metrics = torchmetrics.MetricCollection({
-            "accuracy": torchmetrics.Accuracy(
-                task="multiclass", num_classes=self.model.n_classes, average="none"
-            ),
-            "f1": torchmetrics.F1Score(
-                task="multiclass", num_classes=self.model.n_classes, average="macro"
-            ),
-            "precision": torchmetrics.Precision(
-                task="multiclass", num_classes=self.model.n_classes, average="macro"
-            ),
-            "recall": torchmetrics.Recall(
-                task="multiclass", num_classes=self.model.n_classes, average="macro"
-            ),
-            "auroc": torchmetrics.AUROC(
-                task="multiclass", num_classes=self.model.n_classes, average="macro"
-            ),
-        })
+        metrics = torchmetrics.MetricCollection(
+            {
+                "accuracy": torchmetrics.Accuracy(
+                    task="multiclass", num_classes=self.model.n_classes, average="none"
+                ),
+                "f1": torchmetrics.F1Score(
+                    task="multiclass", num_classes=self.model.n_classes, average="macro"
+                ),
+                "precision": torchmetrics.Precision(
+                    task="multiclass", num_classes=self.model.n_classes, average="macro"
+                ),
+                "recall": torchmetrics.Recall(
+                    task="multiclass", num_classes=self.model.n_classes, average="macro"
+                ),
+                "auroc": torchmetrics.AUROC(
+                    task="multiclass", num_classes=self.model.n_classes, average="macro"
+                ),
+            }
+        )
         self.train_metrics = metrics.clone(prefix="train/")
         self.val_metrics = metrics.clone(prefix="val/")
         self.test_metrics = metrics.clone(prefix="test/")
 
     def forward(
-        self, 
-        x: torch.Tensor, 
-        label: torch.Tensor | None = None, 
-        instance_eval: bool =True
+        self,
+        x: torch.Tensor,
+        label: torch.Tensor | None = None,
+        instance_eval: bool = True,
     ):
         return self.model(x, label, instance_eval=instance_eval)
 
     def _shared_step(
-        self, 
-        batch: tuple[torch.Tensor, torch.Tensor], 
-        stage: str,
-        log: bool = True
+        self, batch: tuple[torch.Tensor, torch.Tensor], stage: str, log: bool = True
     ):
         data, label = batch
 
         # Ensure MIL batch size is 1
         assert data.size(0) == 1, "Batch size must be 1 for MIL"
-        data = data.squeeze(0)   # [n_instances, feat_dim]
+        data = data.squeeze(0)  # [n_instances, feat_dim]
+
+        # Apply subsampling during training
+        if stage == "train" and self.subsampling != 1.0:
+            # Calculate the number of samples to keep
+            if 0 < self.subsampling < 1.0:
+                # Treat as percentage
+                num_samples = int(self.subsampling * data.shape[0])
+            elif self.subsampling >= 1.0:
+                # Treat as absolute count
+                num_samples = min(int(self.subsampling), data.shape[0])
+            else:
+                raise ValueError(f"Invalid subsampling value: {self.subsampling}")
+
+            # Generate random permutation of indices
+            indices = torch.randperm(data.shape[0], device=data.device)
+            # Select the first N samples from the permuted indices
+            sampled_indices = indices[:num_samples]
+            # Use the sampled indices to select instances
+            data = data[sampled_indices]
 
         self.bag_size = data.size(0)
 
@@ -1232,8 +1284,8 @@ class LitCLAM(Pl.LightningModule):
             + (1 - self.weight_loss_slide) * instance_loss
         )
 
-        # AEM (Attention Entropy Maximization) 
-        current_epoch = self.current_epoch if hasattr(self, 'current_epoch') else 0
+        # AEM (Attention Entropy Maximization)
+        current_epoch = self.current_epoch if hasattr(self, "current_epoch") else 0
         aem: torch.Tensor | None = None
         if self.use_aem and stage == "train":
             aem = self.aem.get_aem(current_epoch, attention_weights)
@@ -1242,40 +1294,73 @@ class LitCLAM(Pl.LightningModule):
         error = self.calculate_error(Y_hat, label)
 
         if log:
-            self.log(f"{stage}/slide_loss", slide_loss, prog_bar=(stage != "train"), on_step=(stage=="train"), on_epoch=True, batch_size=1)
-            self.log(f"{stage}/instance_loss", instance_loss, prog_bar=(stage != "train"), on_step=(stage=="train"), on_epoch=True, batch_size=1)
-            self.log(f"{stage}/total_loss", total_loss, prog_bar=(stage != "train"), on_step=(stage=="train"), on_epoch=True, batch_size=1)
-            self.log(f"{stage}/error", error, prog_bar=(stage != "train"), on_step=(stage=="train"), on_epoch=True, batch_size=1)
-            
+            self.log(
+                f"{stage}/slide_loss",
+                slide_loss,
+                prog_bar=(stage != "train"),
+                on_step=(stage == "train"),
+                on_epoch=True,
+                batch_size=1,
+            )
+            self.log(
+                f"{stage}/instance_loss",
+                instance_loss,
+                prog_bar=(stage != "train"),
+                on_step=(stage == "train"),
+                on_epoch=True,
+                batch_size=1,
+            )
+            self.log(
+                f"{stage}/total_loss",
+                total_loss,
+                prog_bar=(stage != "train"),
+                on_step=(stage == "train"),
+                on_epoch=True,
+                batch_size=1,
+            )
+            self.log(
+                f"{stage}/error",
+                error,
+                prog_bar=(stage != "train"),
+                on_step=(stage == "train"),
+                on_epoch=True,
+                batch_size=1,
+            )
+
+            if current_epoch == 0 and stage in ["train", "val"]:
+                self.log(
+                    f"{stage}/num_instances",
+                    self.bag_size,
+                    prog_bar=False,
+                    on_step=True,
+                    on_epoch=False,
+                    batch_size=1,
+                )
+
             if self.use_aem and stage == "train" and aem is not None:
-                self.log(f"{stage}/aem", aem, prog_bar=True, on_step=False, on_epoch=True, batch_size=1)
-                
+                self.log(
+                    f"{stage}/aem",
+                    aem,
+                    prog_bar=True,
+                    on_step=False,
+                    on_epoch=True,
+                    batch_size=1,
+                )
+
         return total_loss, Y_prob, label
 
-    def training_step(
-        self, 
-        batch: tuple[torch.Tensor, torch.Tensor], 
-        batch_idx: int
-    ):
+    def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
         loss, Y_prob, label = self._shared_step(batch, stage="train")
-        
+
         self.train_metrics(Y_prob, label)
         return loss
 
-    def validation_step(
-        self, 
-        batch: tuple[torch.Tensor, torch.Tensor], 
-        batch_idx: int
-    ):
+    def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
         loss, Y_prob, label = self._shared_step(batch, stage="val")
         self.val_metrics(Y_prob, label)
         return loss
 
-    def test_step(
-        self, 
-        batch: tuple[torch.Tensor, torch.Tensor], 
-        batch_idx: int
-    ):
+    def test_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
         loss, Y_prob, label = self._shared_step(batch, stage="test")
         self.test_metrics(Y_prob, label)
         return loss
@@ -1289,16 +1374,14 @@ class LitCLAM(Pl.LightningModule):
         computed = self.val_metrics.compute()
         self._flatten_and_log_metrics(computed, prefix="val")
         self.val_metrics.reset()
-    
+
     def on_test_epoch_end(self):
         computed = self.test_metrics.compute()
         self._flatten_and_log_metrics(computed, prefix="test")
         self.test_metrics.reset()
-        
+
     def _flatten_and_log_metrics(
-        self, 
-        computed: dict[str, torch.Tensor], 
-        prefix: str
+        self, computed: dict[str, torch.Tensor], prefix: str
     ) -> None:
         """
         Convert metric dictionary produced by torchmetrics into a flat dict of
@@ -1317,7 +1400,7 @@ class LitCLAM(Pl.LightningModule):
                 if val.dim() == 0:
                     flat[key] = float(val.item())
                 else:
-                    vals = cast(list[torch.Tensor], val.cpu().tolist()) # type: ignore
+                    vals = cast(list[torch.Tensor], val.cpu().tolist())  # type: ignore
                     for i, v in enumerate(vals):
                         # Special-case accuracy to use *_acc suffix
                         if key.endswith("/accuracy"):
@@ -1332,7 +1415,7 @@ class LitCLAM(Pl.LightningModule):
         # Finally log flattened scalars
         self.log_dict(flat, prog_bar=True, batch_size=1)
 
-    def configure_optimizers(self): # type: ignore
+    def configure_optimizers(self):  # type: ignore
         if self.lr_scheduler:
             scheduler: dict[str, Any] = {
                 "scheduler": self.lr_scheduler,
@@ -1345,7 +1428,9 @@ class LitCLAM(Pl.LightningModule):
             return [self.optimizer], [scheduler]
         return [self.optimizer]
 
-    def predict_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> Any:
+    def predict_step(
+        self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int
+    ) -> Any:
         _, Y_prob, _ = self._shared_step(batch, stage="test", log=False)
         return Y_prob.argmax(dim=-1)
 
@@ -1353,7 +1438,7 @@ class LitCLAM(Pl.LightningModule):
     def calculate_error(Y_hat: torch.Tensor, Y: torch.Tensor):
         """Classification error = 1 - accuracy."""
         return 1.0 - Y_hat.float().eq(Y.float()).float().mean().item()
-    
+
     def get_attention_weights(self, x: torch.Tensor) -> torch.Tensor:
         """
         Get attention weights for a bag of instances.
@@ -1372,11 +1457,11 @@ class LitCLAM(Pl.LightningModule):
 class LitSurvCLAM(LitCLAM):
     """
     Lightning wrapper for CLAM models adapted for survival analysis.
-    
+
     This class extends LitCLAM to support survival analysis tasks using
     discrete-time survival models with logistic hazard parameterization.
     Only overrides the metrics setup to use survival-specific metrics.
-    
+
     Args:
         model (CLAM_MB | CLAM_SB): The CLAM model instance (SB or MB).
         optimizer (torch.optim.Optimizer): Optimizer for training.
@@ -1388,7 +1473,7 @@ class LitSurvCLAM(LitCLAM):
         aem_weight_final (float, optional): Final weight for AEM loss after annealing. Defaults to 0.0.
         aem_annealing_epochs (int, optional): Number of epochs to anneal AEM weight. Defaults to 50.
     """
-    
+
     def __init__(
         self,
         model: CLAM_MB | CLAM_SB,
@@ -1396,6 +1481,7 @@ class LitSurvCLAM(LitCLAM):
         loss_slide: nn.Module = NegativeLogLikelihoodSurvLoss(),
         weight_loss_slide: float = 0.7,
         lr_scheduler: LRScheduler | None = None,
+        subsampling: float = 1.0,
         use_aem: bool = False,
         aem_weight_initial: float = 0.0001,
         aem_weight_final: float = 0.0,
@@ -1407,43 +1493,60 @@ class LitSurvCLAM(LitCLAM):
             loss_slide,
             weight_loss_slide,
             lr_scheduler,
+            subsampling,
             use_aem,
             aem_weight_initial,
             aem_weight_final,
             aem_annealing_epochs,
         )
-        
+
         # For logistic hazard, n_classes should equal num_bins
         self.num_bins = model.n_classes
-        
+
         # Override with survival-specific metrics
         self._setup_metrics()
-    
+
     def _setup_metrics(self):
         """Setup C-index and Brier score metrics for survival analysis."""
-        
+
         metrics = torchmetrics.MetricCollection(
             {
                 "c_index": ConcordanceIndex(),
                 "brier_score": BrierScore(),
             }
         )
-        
+
         self.train_metrics = metrics.clone(prefix="train/")
         self.val_metrics = metrics.clone(prefix="val/")
         self.test_metrics = metrics.clone(prefix="test/")
-        
+
     def _shared_step(
-        self, 
-        batch: tuple[torch.Tensor, torch.Tensor], 
-        stage: str,
-        log: bool = True
+        self, batch: tuple[torch.Tensor, torch.Tensor], stage: str, log: bool = True
     ):
         data, label = batch
 
         # Ensure MIL batch size is 1
         assert data.size(0) == 1, "Batch size must be 1 for MIL"
-        data = data.squeeze(0)   # [n_instances, feat_dim]
+        data = data.squeeze(0)  # [n_instances, feat_dim]
+
+        # Apply subsampling during training
+        if stage == "train" and self.subsampling != 1.0:
+            # Calculate the number of samples to keep
+            if 0 < self.subsampling < 1.0:
+                # Treat as percentage
+                num_samples = int(self.subsampling * data.shape[0])
+            elif self.subsampling >= 1.0:
+                # Treat as absolute count
+                num_samples = min(int(self.subsampling), data.shape[0])
+            else:
+                raise ValueError(f"Invalid subsampling value: {self.subsampling}")
+
+            # Generate random permutation of indices
+            indices = torch.randperm(data.shape[0], device=data.device)
+            # Select the first N samples from the permuted indices
+            sampled_indices = indices[:num_samples]
+            # Use the sampled indices to select instances
+            data = data[sampled_indices]
 
         self.bag_size = data.size(0)
 
@@ -1460,8 +1563,8 @@ class LitSurvCLAM(LitCLAM):
             + (1 - self.weight_loss_slide) * instance_loss
         )
 
-        # AEM (Attention Entropy Maximization) 
-        current_epoch = self.current_epoch if hasattr(self, 'current_epoch') else 0
+        # AEM (Attention Entropy Maximization)
+        current_epoch = self.current_epoch if hasattr(self, "current_epoch") else 0
         aem: torch.Tensor | None = None
         if self.use_aem and stage == "train":
             aem = self.aem.get_aem(current_epoch, attention_weights)
@@ -1470,23 +1573,61 @@ class LitSurvCLAM(LitCLAM):
         # error = self.calculate_error(Y_hat, label)
 
         if log:
-            self.log(f"{stage}/slide_loss", slide_loss, prog_bar=(stage != "train"), on_step=(stage=="train"), on_epoch=True, batch_size=1)
-            self.log(f"{stage}/instance_loss", instance_loss, prog_bar=(stage != "train"), on_step=(stage=="train"), on_epoch=True, batch_size=1)
-            self.log(f"{stage}/total_loss", total_loss, prog_bar=(stage != "train"), on_step=(stage=="train"), on_epoch=True, batch_size=1)
+            self.log(
+                f"{stage}/slide_loss",
+                slide_loss,
+                prog_bar=(stage != "train"),
+                on_step=(stage == "train"),
+                on_epoch=True,
+                batch_size=1,
+            )
+            self.log(
+                f"{stage}/instance_loss",
+                instance_loss,
+                prog_bar=(stage != "train"),
+                on_step=(stage == "train"),
+                on_epoch=True,
+                batch_size=1,
+            )
+            self.log(
+                f"{stage}/total_loss",
+                total_loss,
+                prog_bar=(stage != "train"),
+                on_step=(stage == "train"),
+                on_epoch=True,
+                batch_size=1,
+            )
             # self.log(f"{stage}/error", error, prog_bar=(stage != "train"), on_step=(stage=="train"), on_epoch=True, batch_size=1)
-            
+
+            if current_epoch == 0 and stage in ["train", "val"]:
+                self.log(
+                    f"{stage}/num_instances",
+                    self.bag_size,
+                    prog_bar=False,
+                    on_step=True,
+                    on_epoch=False,
+                    batch_size=1,
+                )
+
             if self.use_aem and stage == "train" and aem is not None:
-                self.log(f"{stage}/aem", aem, prog_bar=True, on_step=False, on_epoch=True, batch_size=1)
-                
+                self.log(
+                    f"{stage}/aem",
+                    aem,
+                    prog_bar=True,
+                    on_step=False,
+                    on_epoch=True,
+                    batch_size=1,
+                )
+
         return total_loss, Y_prob, label
-    
+
     def predict_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
         """Prediction step returns logits for discrete-time hazard intervals."""
         x, _ = batch
-        
+
         # Ensure MIL batch size is 1
         assert x.size(0) == 1, "Batch size must be 1 for MIL"
         x = x.squeeze(0)  # [n_instances, feat_dim]
-        
+
         logits, _, _, _, _ = self.model(x, instance_eval=False)
         return logits  # Return logits, not hazards

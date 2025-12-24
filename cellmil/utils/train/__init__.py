@@ -1,168 +1,185 @@
+from cellmil.interfaces.FeatureExtractorConfig import ExtractorType
 from .dataset import split_dataset
 from .losses import FocalLoss
+import pandas as pd
+import lightning as Pl
+from typing import Callable
+from torch.optim import AdamW
+from cellmil.models.mil.attentiondeepmil import AttentionDeepMIL, LitAttentionDeepMIL
+from cellmil.models.mil.head4type import Head4Type, LitHead4Type
+from cellmil.models.mil.clam import CLAM_SB, LitCLAM
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+from cellmil.utils.train import FocalLoss
+from cellmil.utils.train.dataset import complementary_frequencies
 
 __all__ = [ "split_dataset", "FocalLoss"]
 
 
-# def train_eval(
-#     name: str,
-#     lit_model_creator: Callable[[int], Pl.LightningModule],
-#     dataset: Union[
-#         CellMILDataset, CellGNNMILDataset, PatchGNNMILDataset, PatchMILDataset
-#     ],
-#     transforms: Union[Transform, TransformPipeline, None] = None,
-#     train_size: float = 0.8,
-#     random_state: int = 42,
-#     debug: bool = False,
-# ) -> dict[str, Any]:
-#     """
-#     Train and evaluate a model using PyTorch Lightning.
-#     Args:
-#         name (str): Name of the experiment/model.
-#         lit_model_creator (Callable[[int], Pl.LightningModule]): A callable that takes the number of classes
-#             as input and returns a PyTorch Lightning module.
-#         dataset (Union[CellMILDataset, CellGNNMILDataset, PatchGNNMILDataset, PatchMILDataset]):
-#             The dataset to be used for training and evaluation.
-#         transforms (Union[Transform, TransformPipeline, None], optional): Transformations to be applied to the dataset.
-#             Defaults to None.
-#         train_size (float, optional): Proportion of dataset to use for training. Defaults to 0.8.
-#         random_state (int, optional): Random seed for reproducibility. Defaults to 42.
-#         debug (bool, optional): If True, enables debug mode with additional logging. Defaults to False.
-#     Returns:
-#         dict[str, Any]: A dictionary containing training and evaluation results.
-#     """
-#     # Extract labels for stratified split
-#     y = np.array([dataset.labels[slide] for slide in dataset.slides])
-#     indices = np.arange(len(dataset))
+def get_extractors_from_name(name: str):
+    if name == "ALL":
+        extractors = [
+            ExtractorType.morphometrics,
+            ExtractorType.pyradiomics_hed,
+            ExtractorType.connectivity,
+            ExtractorType.geometric,
+        ]
+    elif name == "MORPHO":
+        extractors = ExtractorType.morphometrics
+    elif name == "TOPO":
+        extractors = [
+            ExtractorType.connectivity,
+            ExtractorType.geometric,
+        ]
+    elif name == "PYRAD":
+        extractors = ExtractorType.pyradiomics_hed
+    elif name == "RESNET":
+        extractors = ExtractorType.resnet50
+    elif name == "GIGAPATH":
+        extractors = ExtractorType.gigapath
+    else:
+        raise ValueError(f"Unknown extractor configuration: {name}")
+    return extractors
 
-#     logger.info(f"Starting training with train_size={train_size}...")
+def preprocess_df(df: pd.DataFrame, task: str) -> pd.DataFrame:
+    if task == "ADENOvsSQUA":
+        df = df[df['HISTOLOGY'].isin(['adenocarcinoma', 'squamous'])] # type: ignore
+        df[task] = (df['HISTOLOGY'] == 'adenocarcinoma').astype(int)
+    elif task == "PDL1":
+        df = df[df["PDL1_HIGH_LOW"].isin(["high", "low"])]  # type: ignore
+        df[task] = (df["PDL1_HIGH_LOW"] == "high").astype(int)
+    elif task in ["OS6", "DCR", "OS24", "ORR", "CBR"]:
+        df = df[df[task].isin([0, 1])] # type: ignore
+        df = df.dropna(subset=[task]) # type: ignore
+        df[task] = df[task].astype(int) # type: ignore
+    elif task in ["OS", "PFS"]:
+        df['IO_START'] = pd.to_datetime(df['IO_START']) # type: ignore
+        if task == "OS":
+            df['Z03_DATE'] = pd.to_datetime(df['Z03_DATE']) # type: ignore
+            df['duration'] = (df['Z03_DATE'] - df['IO_START']).dt.days / 30.44 # type: ignore
+            df['event'] = df['DEATH_EVENT_OC'].astype(int)
+        elif task == "PFS":
+            df['PROGRESSION_DATE'] = pd.to_datetime(df['PROGRESSION_DATE']) # type: ignore
+            df['duration'] = (df['PROGRESSION_DATE'] - df['IO_START']).dt.days / 30.44 # type: ignore
+            df['event'] = df['PROGRESSION_EVENT_OC'].astype(int)
+        else:
+            raise ValueError(f"Unknown survival task: {task}")
+        
+        df = df[df['duration'] > 0]
+        
+    else:
+        raise ValueError(f"Unknown task: {task}")
+    
+    df = df.dropna(subset=[task]) # type: ignore
+    return df
 
-#     # Split dataset into train and test indices using stratified split
-#     train_idx, test_idx = cast(
-#         tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]],
-#         train_test_split(
-#             indices,
-#             train_size=train_size,
-#             random_state=random_state,
-#             stratify=y,
-#         ),
-#     )
+def get_lit_model_creator(model: str, task: str, n_bins: int, feature: str, df: pd.DataFrame, regularization: bool) -> Callable[[int], Pl.LightningModule]:
+    if model == "ABMIL":
+        def lit_model_creator(input_dim: int) -> Pl.LightningModule:
+            model = AttentionDeepMIL(
+                embed_dim=input_dim,
+                size_arg=[256, 128] if feature != "RESNET" and feature != "GIGAPATH" else [500, 128],
+                n_classes=2 if task not in ["OS", "PFS"] else n_bins,
+                attention_branches=8 if feature != "RESNET" and feature != "GIGAPATH" else 1,
+                temperature=1.5 if feature != "RESNET" and feature != "GIGAPATH" else 1.0
+            )
 
-#     logger.info(f"Train indices: {len(train_idx)}, Test indices: {len(test_idx)}")
+            optimizer = AdamW(
+                model.parameters(), 
+                lr=1e-4,
+                weight_decay=1e-1 if regularization else 0.0
+            )
 
-#     # Create train and test datasets with proper transform fitting
-#     train_dataset, test_dataset = dataset.create_train_val_datasets(  # type: ignore
-#         train_indices=train_idx.tolist(),
-#         val_indices=test_idx.tolist(),
-#         transforms=transforms,
-#     )
+            print("\nCreating trainer...")
+            lit_model = LitAttentionDeepMIL(
+                model=model,
+                optimizer=optimizer,
+                loss=FocalLoss(
+                    alpha=complementary_frequencies(df, task)[1], 
+                    gamma=2.0
+                ),
+                lr_scheduler=ReduceLROnPlateau(optimizer, mode="min", patience=5, factor=0.8),
+                use_aem= True if regularization else False,
+                subsampling=0.8 if regularization else 1.0
+            )
 
-#     # Create dataloaders based on dataset type
-#     if isinstance(dataset, (CellGNNMILDataset, PatchGNNMILDataset)):
-#         train_loader = DataLoaderPyG(
-#             train_dataset,  # type: ignore
-#             batch_size=1,
-#             shuffle=True,
-#             num_workers=8
-#         )
-#         test_loader = DataLoaderPyG(
-#             test_dataset,  # type: ignore
-#             batch_size=1,
-#             shuffle=False,
-#             num_workers=8
-#         )
-#     else:
-#         train_loader = DataLoaderTorch(
-#             train_dataset,  # type: ignore
-#             batch_size=1,
-#             shuffle=True,
-#             num_workers=8
-#         )
-#         test_loader = DataLoaderTorch(
-#             test_dataset,  # type: ignore
-#             batch_size=1,
-#             shuffle=False,
-#             num_workers=8
-#         )
+            return lit_model
+    
+    elif model == "HEAD4TYPE":
+        if feature in ["RESNET", "GIGAPATH"]:
+            raise ValueError("HEAD4TYPE model is not compatible with RESNET or GIGAPATH features.")
+        
+        def lit_model_creator(input_dim: int) -> Pl.LightningModule:
+            model = Head4Type(
+                embed_dim=input_dim, 
+                size_arg=[256, 128], 
+                n_classes=2 if task not in ["OS", "PFS"] else n_bins, 
+                temperature=1.5
+            )
 
-#     # Plot sample features if in debug mode
-#     if debug:
-#         logger.info("Debug mode enabled - plotting sample features")
-#         plot_sample_features(train_dataset, test_dataset, name)
-#         input("Press Enter to continue...")
+            optimizer = AdamW(
+                model.parameters(), 
+                lr=1e-4,
+                weight_decay=1e-1 if regularization else 0.0
+            )
 
-#     # Create model instance
-#     if isinstance(
-#         dataset,
-#         (
-#             CellGNNMILDataset,
-#             SubsetCellGNNMILDataset,
-#             PatchGNNMILDataset,
-#             SubsetPatchGNNMILDataset,
-#         ),
-#     ):
-#         model = lit_model_creator(train_dataset[0].x.shape[-1])  # type: ignore
-#     else:
-#         model = lit_model_creator(train_dataset[0][0].shape[-1])  # type: ignore
+            print("\nCreating trainer...")
+            lit_model = LitHead4Type(
+                model=model,
+                optimizer=optimizer,
+                loss=FocalLoss(
+                    alpha=complementary_frequencies(df, task)[1], gamma=2.0
+                ),
+                lr_scheduler=ReduceLROnPlateau(
+                    optimizer, 
+                    mode="min", 
+                    patience=5, 
+                    factor=0.8
+                ),
+                use_aem= True if regularization else False,
+                subsampling=0.8 if regularization else 1.0
+            )
 
-#     # Setup trainer with checkpoint callback
-#     early_stopping = EarlyStopping(monitor="val/total_loss", patience=10, mode="min")
+            return lit_model
+        
+        
+    elif model == "CLAM":
+        def lit_model_creator(input_dim: int) -> Pl.LightningModule:
+            model = CLAM_SB(
+                embed_dim=input_dim,
+                size_arg="small", 
+                n_classes=2 if task not in ["OS", "PFS"] else n_bins,
+                k_sample=8
+            )
 
-#     checkpoint_callback = ModelCheckpoint(
-#         dirpath=Path(f"./checkpoints/{name}"),
-#         filename="best_model",
-#         monitor="val/f1",
-#         mode="max",
-#         save_top_k=1,
-#     )
+            optimizer = AdamW(
+                model.parameters(), 
+                lr=1e-4,
+                weight_decay=1e-1 if regularization else 0.0
+            )
+            
+            lit_model = LitCLAM(
+                model=model,
+                optimizer=optimizer,
+                loss_slide=FocalLoss(
+                    alpha=complementary_frequencies(df, task)[1], 
+                    gamma=2.0
+                ),
+                lr_scheduler=ReduceLROnPlateau(
+                    optimizer,
+                    mode="min",
+                    patience=5,
+                    factor=0.8
+                ),
+                use_aem= True if regularization else False,
+                subsampling=0.8 if regularization else 1.0
+            )
 
-#     # Model training
-#     wandb.login()
-
-#     wandb_logger = WandbLogger(
-#         project="CELLMIL" if not debug else "(TEST) CELLMIL",
-#         name=f"{name}_{time.strftime('%Y-%m-%d_%H-%M-%S')}",
-#     )
-
-#     trainer = Trainer(
-#         max_epochs=100,
-#         accelerator="gpu",
-#         devices=[0],
-#         log_every_n_steps=1,
-#         logger=wandb_logger,
-#         callbacks=[checkpoint_callback, early_stopping],
-#         accumulate_grad_batches=8,
-#     )
-
-#     # Train the model
-#     trainer.fit(model, train_loader, test_loader)
-
-#     # Get evaluation report
-#     report = get_report(trainer, model, test_loader)
-#     wandb.log(report)
-
-#     # Save the transforms
-#     checkpoint_dir = Path(f"./checkpoints/{name}")
-#     if (
-#         transforms is not None
-#         and hasattr(train_dataset, "transforms")
-#         and isinstance(
-#             train_dataset, (CellMILDataset, CellGNNMILDataset, SubsetCellGNNMILDataset)
-#         )
-#     ):
-#         # Get the fitted transforms from the train dataset if available
-#         fitted_transforms = train_dataset.transforms
-
-#         if isinstance(fitted_transforms, TransformPipeline):
-#             transforms_path = checkpoint_dir / "transforms"
-#             fitted_transforms.save(transforms_path)
-#             logger.info(f"Saved transforms to: {transforms_path}")
-#         elif isinstance(fitted_transforms, Transform):
-#             transforms_path = checkpoint_dir / "transform.json"
-#             fitted_transforms.save(transforms_path)
-#             logger.info(f"Saved transform to: {transforms_path}")
-
-#     logger.info("Training completed successfully")
-#     wandb.finish()
-
-#     return report
+            return lit_model
+        
+    else:
+        raise ValueError(f"Unknown model: {model}")
+    
+    return lit_model_creator
+    
+    
+    
