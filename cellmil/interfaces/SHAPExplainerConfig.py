@@ -32,7 +32,7 @@ class SHAPExplainerConfig(BaseModel):
         description="Number of quantile bins for stratified sampling based on attention scores",
     )
     samples_per_bin: int = Field(
-        default=10000,
+        default=1000,
         description="Number of cells to sample from each attention quantile bin",
     )
     max_total_samples: Optional[int] = Field(
@@ -46,7 +46,7 @@ class SHAPExplainerConfig(BaseModel):
         description="Type of SHAP explainer to use (gradient is fastest for neural networks)",
     )
     background_percentage: float = Field(
-        default=0.5,
+        default=0.2,
         description="Percentage of sampled cells to use as background data (0.0 to 1.0)",
     )
     nsamples: int = Field(

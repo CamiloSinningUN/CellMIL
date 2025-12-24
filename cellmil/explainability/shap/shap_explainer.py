@@ -14,6 +14,8 @@ import pandas as pd
 import lightning as Pl
 import json
 from tqdm import tqdm
+import multiprocessing
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from cellmil.interfaces.SHAPExplainerConfig import SHAPExplainerConfig
 from cellmil.interfaces.FeatureExtractorConfig import ExtractorType
@@ -88,8 +90,8 @@ class SHAPExplainer:
         data: pd.DataFrame,
         extractor: ExtractorType | list[ExtractorType],
         segmentation_model: ModelType,
-        graph_creator: Optional[GraphCreatorType] = None,
         transforms_path: Path | str,
+        graph_creator: Optional[GraphCreatorType] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """
@@ -193,6 +195,70 @@ class SHAPExplainer:
                 f"Model {model.__class__.__name__} must have get_attention_weights method"
             )
 
+    @staticmethod
+    def _process_single_slide(
+        slide_name: str,
+        dataset_folder: Path,
+        extractor: ExtractorType | list[ExtractorType],
+        segmentation_model: ModelType,
+        graph_creator: Optional[GraphCreatorType],
+        transforms: TransformPipeline,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Process a single slide to extract features and cell types.
+
+        Args:
+            slide_name: Name of the slide to process
+            dataset_folder: Path to dataset folder
+            extractor: Feature extractor type
+            segmentation_model: Segmentation model type
+            graph_creator: Graph creation method
+            transforms: Transform pipeline to apply
+
+        Returns:
+            Dictionary with features, cell_types, feature_names, and slide_name, or None if failed
+        """
+        try:
+            # Load features for this slide
+            features, cell_id_mapping, slide_feature_names = get_cell_features(
+                folder=dataset_folder,
+                slide_name=slide_name,
+                extractor=extractor,  # type: ignore
+                graph_creator=graph_creator,  # type: ignore
+                segmentation_model=segmentation_model,  # type: ignore
+            )
+
+            if features is None or len(features) == 0:
+                logger.warning(
+                    f"No features found for slide {slide_name}, skipping"
+                )
+                return None
+
+            # Apply transforms
+            features = transforms.transform(features)
+
+            # Load cell types if needed
+            cell_types = None
+            cell_types_dict = get_cell_types(
+                folder=dataset_folder,
+                slide_name=slide_name,
+                segmentation_model=segmentation_model,
+            )
+            if cell_types_dict is not None and cell_id_mapping is not None:
+                cell_types = cell_types_to_tensor(cell_types_dict, cell_id_mapping)
+
+            return {
+                "slide_name": slide_name,
+                "features": features,
+                "cell_types": cell_types,
+                "feature_names": slide_feature_names,
+                "num_cells": features.shape[0],
+            }
+
+        except Exception as e:
+            logger.error(f"Error processing slide {slide_name}: {e}")
+            return None
+
     def _load_cell_dataset(
         self,
         dataset_folder: Path,
@@ -216,58 +282,60 @@ class SHAPExplainer:
         slide_indices: List[Tuple[str, int]] = []
 
         # Get list of slides
-        slide_names = data["FULL_PATH"].tolist()
+        slide_names = [Path(slide).stem for slide in data["FULL_PATH"].tolist()]
         logger.info(f"Processing {len(slide_names)} slides...")
 
         feature_names: Optional[List[str]] = None
 
-        for slide_name in tqdm(slide_names, desc="Loading slides"):
-            try:
-                # Load features for this slide
-                features, cell_id_mapping, slide_feature_names = get_cell_features(
-                    folder=dataset_folder,
-                    slide_name=slide_name,
-                    extractor=extractor,  # type: ignore
-                    graph_creator=graph_creator,  # type: ignore
-                    segmentation_model=segmentation_model,  # type: ignore
-                )
+        # Determine number of workers (use all available CPUs, but cap at reasonable limit)
+        num_workers = min(multiprocessing.cpu_count(), len(slide_names), 16)
+        logger.info(f"Using {num_workers} parallel workers for slide processing")
 
-                if features is None or len(features) == 0:
-                    logger.warning(
-                        f"No features found for slide {slide_name}, skipping"
+        # Process slides in parallel
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            # Submit all tasks
+            future_to_slide = {
+                executor.submit(
+                    self._process_single_slide,
+                    slide_name,
+                    dataset_folder,
+                    extractor,
+                    segmentation_model,
+                    graph_creator,
+                    transforms,
+                ): slide_name
+                for slide_name in slide_names
+            }
+
+            # Collect results as they complete
+            with tqdm(total=len(slide_names), desc="Loading slides") as pbar:
+                for future in as_completed(future_to_slide):
+                    result = future.result()
+                    pbar.update(1)
+
+                    if result is None:
+                        continue
+
+                    # Store feature names from first slide (should be same for all)
+                    if (
+                        feature_names is None
+                        and result["feature_names"] is not None
+                    ):
+                        feature_names = result["feature_names"]
+                        logger.info(f"Captured {len(feature_names)} feature names")
+
+                    # Add to collections
+                    all_features.append(result["features"])
+                    if result["cell_types"] is not None:
+                        all_cell_types.append(result["cell_types"])
+
+                    # Track which slide each cell belongs to
+                    slide_indices.extend(
+                        [
+                            (result["slide_name"], i)
+                            for i in range(result["num_cells"])
+                        ]
                     )
-                    continue
-
-                # Store feature names from first slide (should be same for all)
-                if feature_names is None and slide_feature_names is not None:
-                    feature_names = slide_feature_names
-                    logger.info(f"Captured {len(feature_names)} feature names")
-
-                # Apply transforms
-                features = transforms.transform(features)
-
-                # Load cell types if needed
-                cell_types = None
-                cell_types_dict = get_cell_types(
-                    folder=dataset_folder,
-                    slide_name=slide_name,
-                    segmentation_model=segmentation_model,
-                )
-                if cell_types_dict is not None and cell_id_mapping is not None:
-                    cell_types = cell_types_to_tensor(cell_types_dict, cell_id_mapping)
-
-                # Add to collections
-                all_features.append(features)
-                if cell_types is not None:
-                    all_cell_types.append(cell_types)
-
-                # Track which slide each cell belongs to
-                num_cells = features.shape[0]
-                slide_indices.extend([(slide_name, i) for i in range(num_cells)])
-
-            except Exception as e:
-                logger.error(f"Error processing slide {slide_name}: {e}")
-                continue
 
         if len(all_features) == 0:
             raise ValueError("No valid features found in any slide")

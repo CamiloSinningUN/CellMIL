@@ -227,10 +227,7 @@ class SHAPVisualizer:
         output_file_html = output_dir / "feature_importance_distribution.html"
         fig.write_html(str(output_file_html))  # type: ignore
 
-        # Also save as static image
-        output_file_png = output_dir / "feature_importance_distribution.png"
-        fig.write_image(str(output_file_png), width=1200, height=600)  # type: ignore
         logger.info(
-            f"Saved importance distribution to {output_file_html} and {output_file_png}"
+            f"Saved importance distribution to {output_file_html}"
         )
         return output_file_html

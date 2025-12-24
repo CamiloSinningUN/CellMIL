@@ -109,7 +109,8 @@ class SHAPComputer:
             attention_scores,
             max_total_samples=max_total_samples,
         )
-        logger.info(f"Sampled {len(sampled_indices)} cells from {len(sampling_info['bins'])} bins")
+        print(sampled_indices)
+        logger.info(f"Sampled {len(sampled_indices)} cells from {sampling_info['num_bins']} bins")
         
         # Step 3: Get sampled features and compute SHAP
         sampled_features = all_features[sampled_indices]
@@ -309,14 +310,25 @@ class SHAPComputer:
             # If output has extra dimension, squeeze it
             if shap_values.ndim == 3 and shap_values.shape[1] == 1:
                 shap_values = shap_values[:, 0, :]
+            # Ensure we have 2D array [n_samples, n_features]
+            shap_values = np.squeeze(shap_values)
+            if shap_values.ndim == 1:
+                shap_values = shap_values.reshape(-1, 1)
 
         logger.info(f"SHAP values shape: {shap_values.shape}")
 
         # Compute feature importance
         feature_importance = np.abs(shap_values).mean(axis=0)
+        # Ensure feature_importance is 1D
+        feature_importance = np.squeeze(feature_importance)
+        
+        logger.info(f"Feature importance shape: {feature_importance.shape}")
+        logger.info(f"Feature importance stats: min={feature_importance.min():.6f}, max={feature_importance.max():.6f}, mean={feature_importance.mean():.6f}")
+        
         top_features_idx = np.argsort(feature_importance)[::-1]
 
         logger.info(f"Top 10 features for {head_name}: {top_features_idx[:10]}")
+        logger.info(f"Top 10 feature importances: {feature_importance[top_features_idx[:10]]}")
 
         return {
             "shap_values": shap_values,
