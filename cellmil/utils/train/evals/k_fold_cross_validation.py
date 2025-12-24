@@ -157,7 +157,7 @@ class KFoldCrossValidation:
 
             early_stopping = EarlyStopping(
                 monitor=monitor_metric,
-                patience=cast(int, kwargs.get("early_stopping_patience", 10)),
+                patience=cast(int, kwargs.get("early_stopping_patience", 30)),
                 mode=mode,
                 verbose=True,
             )
