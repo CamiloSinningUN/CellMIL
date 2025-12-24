@@ -88,8 +88,8 @@ class SHAPExplainer:
         data: pd.DataFrame,
         extractor: ExtractorType | list[ExtractorType],
         segmentation_model: ModelType,
-        transforms_path: Path | str,
         graph_creator: Optional[GraphCreatorType] = None,
+        transforms_path: Path | str,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """

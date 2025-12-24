@@ -10,6 +10,13 @@ class SHAPExplainerType(str, Enum):
     gradient = "gradient"  # GradientExplainer (fast, requires gradients)
     deep = "deep"  # DeepExplainer (for deep learning models)
     kernel = "kernel"  # KernelExplainer (model-agnostic, slow)
+    
+    @classmethod
+    def values(cls):
+        return [member.value for member in cls]
+
+    def __str__(self):
+        return self.value
 
 
 class SHAPExplainerConfig(BaseModel):
