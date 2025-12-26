@@ -121,6 +121,7 @@ class KFoldCrossValidation:
             )
 
             # Create fresh model instance for this fold
+            # Use transformed dataset to get correct feature dimension after correlation filter
             if isinstance(
                 dataset,
                 (
@@ -130,10 +131,10 @@ class KFoldCrossValidation:
                     SubsetPatchGNNMILDataset,
                 ),
             ):
-                sample_data = dataset[0]
+                sample_data = train_dataset[0]
                 model = lit_model_creator(sample_data.x.shape[1])  # type: ignore
             else:
-                sample_data = dataset[0]
+                sample_data = train_dataset[0]
                 model = lit_model_creator(sample_data[0].shape[1])
 
             # Detect if this is a survival model
@@ -364,13 +365,13 @@ class KFoldCrossValidation:
                 train_dataset,  # type: ignore
                 batch_size=1,
                 shuffle=True,
-                num_workers=0,
+                num_workers=8,
             )
             val_loader = DataLoaderTorch(
                 val_dataset,  # type: ignore
                 batch_size=1,
                 shuffle=False,
-                num_workers=0,
+                num_workers=8,
             )
 
         return train_loader, val_loader, train_dataset, val_dataset
