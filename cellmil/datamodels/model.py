@@ -186,6 +186,8 @@ class ModelStorage:
         checkpoint_path: Union[str, Path],
         avg_epochs: float,
         final_metrics: dict[str, Any],
+        transforms: Any = None,
+        label_transforms: Any = None,
     ) -> None:
         """
         Save the final model trained on average epochs.
@@ -194,12 +196,23 @@ class ModelStorage:
             checkpoint_path: Path to final model checkpoint
             avg_epochs: Average number of epochs used
             final_metrics: Metrics from final model
+            transforms: Optional feature transforms
+            label_transforms: Optional label transforms
         """
         final_dir = self.output_dir / "final_model"
         final_dir.mkdir(parents=True, exist_ok=True)
 
         if Path(checkpoint_path).exists():
             shutil.copy2(checkpoint_path, final_dir / "final_model.ckpt")
+
+        # Save transforms using their native save methods (JSON format)
+        if transforms is not None:
+            transforms_dir = final_dir / "transforms"
+            transforms.save(transforms_dir)
+
+        if label_transforms is not None:
+            label_transforms_dir = final_dir / "label_transforms"
+            label_transforms.save(label_transforms_dir)
 
         metadata: dict[str, Any] = {
             "avg_epochs": avg_epochs,
@@ -257,6 +270,32 @@ class ModelStorage:
 
         # Try loading label transforms from JSON (native format)
         label_transforms_dir = fold_dir / "label_transforms"
+        if label_transforms_dir.exists():
+            try:
+                label_transforms = LabelTransformPipeline.load(label_transforms_dir)
+            except Exception as e:
+                logger.warning(f"Failed to load label transforms from JSON: {e}")
+
+        return transforms, label_transforms
+
+    def load_final_transforms(self) -> tuple[Any, Any]:
+        """Load transforms for the final model."""
+        
+        final_dir = self.output_dir / "final_model"
+
+        transforms = None
+        label_transforms = None
+
+        # Try loading from JSON (native format)
+        transforms_dir = final_dir / "transforms"
+        if transforms_dir.exists():
+            try:
+                transforms = TransformPipeline.load(transforms_dir)
+            except Exception as e:
+                logger.warning(f"Failed to load transforms from JSON: {e}")
+
+        # Try loading label transforms from JSON (native format)
+        label_transforms_dir = final_dir / "label_transforms"
         if label_transforms_dir.exists():
             try:
                 label_transforms = LabelTransformPipeline.load(label_transforms_dir)

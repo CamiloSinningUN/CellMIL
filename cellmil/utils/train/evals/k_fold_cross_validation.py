@@ -276,7 +276,7 @@ class KFoldCrossValidation:
         # Train final model with average epochs
         logger.info(f"Training final model with {avg_best_epoch:.1f} average epochs...")
         
-        final_checkpoint = self._train_final_model(
+        final_checkpoint, final_transforms, final_label_transforms = self._train_final_model(
             name=name,
             lit_model_creator=lit_model_creator,
             dataset=dataset,
@@ -291,6 +291,8 @@ class KFoldCrossValidation:
             checkpoint_path=final_checkpoint,
             avg_epochs=avg_best_epoch,
             final_metrics=aggregated_report,
+            transforms=final_transforms,
+            label_transforms=final_label_transforms,
         )
 
         logger.info("K-fold cross-validation completed successfully!")
@@ -352,13 +354,15 @@ class KFoldCrossValidation:
                 train_dataset,  # type: ignore
                 batch_size=1,
                 shuffle=True,
-                num_workers=0,
+                num_workers=8,
+                persist_workers=True,
             )
             val_loader = DataLoaderPyG(
                 val_dataset,  # type: ignore
                 batch_size=1,
                 shuffle=False,
-                num_workers=0,
+                num_workers=8,
+                persist_workers=True,
             )
         else:
             train_loader = DataLoaderTorch(
@@ -366,12 +370,14 @@ class KFoldCrossValidation:
                 batch_size=1,
                 shuffle=True,
                 num_workers=8,
+                persist_workers=True,
             )
             val_loader = DataLoaderTorch(
                 val_dataset,  # type: ignore
                 batch_size=1,
                 shuffle=False,
                 num_workers=8,
+                persist_workers=True,
             )
 
         return train_loader, val_loader, train_dataset, val_dataset
@@ -708,7 +714,7 @@ class KFoldCrossValidation:
         label_transforms: Union[LabelTransform, LabelTransformPipeline, None],
         target_epochs: int,
         project_name: str,
-    ) -> str:
+    ) -> tuple[str, Union[Transform, TransformPipeline, None], Union[LabelTransform, LabelTransformPipeline, None]]:
         """
         Train final model on full dataset with target number of epochs.
 
@@ -722,7 +728,7 @@ class KFoldCrossValidation:
             project_name: Wandb project name
 
         Returns:
-            Path to final checkpoint
+            Tuple of (checkpoint_path, fitted_transforms, fitted_label_transforms)
         """
         logger.info("Training final model on full dataset...")
 
@@ -748,18 +754,20 @@ class KFoldCrossValidation:
                 train_dataset,  # type: ignore
                 batch_size=1,
                 shuffle=True,
-                num_workers=0,
+                num_workers=8,
+                persist_workers=True,
             )
-            sample_data = dataset[0]
+            sample_data = train_dataset[0]
             model = lit_model_creator(sample_data.x.shape[1], use_lr_scheduler=False)  # type: ignore
         else:
             dataloader = DataLoaderTorch(
                 train_dataset,  # type: ignore
                 batch_size=1,
                 shuffle=True,
-                num_workers=0,
+                num_workers=8,
+                persist_workers=True,
             )
-            sample_data = dataset[0]
+            sample_data = train_dataset[0]
             model = lit_model_creator(sample_data[0].shape[1], use_lr_scheduler=False)
         # Setup checkpoint callback
         is_surv = is_survival_model(model)
@@ -795,7 +803,11 @@ class KFoldCrossValidation:
 
         wandb.finish()
 
-        return str(checkpoint_callback.best_model_path) # type: ignore
+        # Extract fitted transforms from the training dataset
+        fitted_transforms = getattr(train_dataset, "transforms", None)
+        fitted_label_transforms = getattr(train_dataset, "label_transforms", None)
+
+        return str(checkpoint_callback.best_model_path), fitted_transforms, fitted_label_transforms # type: ignore
 
 
 
