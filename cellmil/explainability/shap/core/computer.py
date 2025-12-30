@@ -14,6 +14,7 @@ from cellmil.interfaces.SHAPExplainerConfig import SHAPExplainerType
 from cellmil.utils import logger
 from cellmil.models.mil.attentiondeepmil import LitAttentionDeepMIL, AttentionDeepMIL
 from cellmil.models.mil.head4type import LitHead4Type, Head4Type
+from cellmil.models.mil.clam import LitCLAM, CLAM_SB, CLAM_MB
 from .sampler import AttentionStratifiedSampler
 
 
@@ -54,7 +55,7 @@ class SHAPComputer:
 
     def compute_shap_values(
         self,
-        model: LitAttentionDeepMIL | LitHead4Type,
+        model: LitAttentionDeepMIL | LitHead4Type | LitCLAM,
         all_features: np.ndarray[Any, Any],
         device: torch.device,
         sampler: AttentionStratifiedSampler, 
@@ -69,7 +70,7 @@ class SHAPComputer:
         3. Compute SHAP values for sampled cells
 
         Args:
-            model: The full MIL model (LitAttentionDeepMIL or LitHead4Type)
+            model: The full MIL model (LitAttentionDeepMIL, LitHead4Type, or LitCLAM)
             all_features: RAW features of ALL cells [n_total_cells, n_features]
             device: Device to run computations on
             sampler: Stratified sampler for attention-based sampling
@@ -386,25 +387,29 @@ class SHAPComputer:
         # Concatenate all batches
         return np.concatenate(all_attention, axis=0)
 
-    def _get_attention_module(self, lit_model: LitAttentionDeepMIL | LitHead4Type) -> torch.nn.Module:
+    def _get_attention_module(self, lit_model: LitAttentionDeepMIL | LitHead4Type | LitCLAM) -> torch.nn.Module:
         """
         Extract the attention module from a MIL model.
 
         Args:
-            model: The full MIL model (LitAttentionDeepMIL or LitHead4Type)
+            model: The full MIL model (LitAttentionDeepMIL, LitHead4Type, or LitCLAM)
 
         Returns:
             The attention MLP module
         """
         # For Lightning models, get the underlying model
-        model = cast(AttentionDeepMIL | Head4Type, lit_model.model)
+        model = cast(AttentionDeepMIL | Head4Type | CLAM_SB | CLAM_MB, lit_model.model)
         # Get the attention module
-        if hasattr(model, "attention"):
+        if isinstance(model, (CLAM_SB, CLAM_MB)):
+            # For CLAM, attention_net is Sequential: [Linear, ReLU, Dropout, Attn_Net/Attn_Net_Gated]
+            # We need to extract the last module which is the actual attention network
+            return model.attention_net[-1]
+        elif hasattr(model, "attention"):
             return model.attention 
         else:
             raise ValueError(f"Model {type(model)} does not have an 'attention' module")
 
-    def _get_feature_extractor(self, lit_model: LitAttentionDeepMIL | LitHead4Type) -> torch.nn.Module:
+    def _get_feature_extractor(self, lit_model: LitAttentionDeepMIL | LitHead4Type | LitCLAM) -> torch.nn.Module:
         """
         Extract the feature extractor from a MIL model.
 
@@ -417,10 +422,14 @@ class SHAPComputer:
             The feature extractor module
         """
         # For Lightning models, get the underlying model
-        model = cast(AttentionDeepMIL | Head4Type, lit_model.model)
+        model = cast(AttentionDeepMIL | Head4Type | CLAM_SB | CLAM_MB, lit_model.model)
 
         # Get the feature extractor
-        if hasattr(model, "feature_extractor_part2"):
+        if isinstance(model, (CLAM_SB, CLAM_MB)):
+            # For CLAM, we need the first 3 layers of attention_net: [Linear, ReLU, Dropout]
+            # These transform the raw features before the attention layer
+            return nn.Sequential(*list(model.attention_net.children())[:-1])
+        elif hasattr(model, "feature_extractor_part2"):
             return model.feature_extractor_part2
         else:
-            raise ValueError(f"Model {type(model)} does not have a 'feature_extractor_part2' module")
+            raise ValueError(f"Model {type(model)} does not have a feature extractor module")

@@ -32,6 +32,7 @@ from cellmil.explainability.shap.visualizers import SHAPVisualizer
 from cellmil.utils import logger
 from cellmil.models.mil import LitAttentionDeepMIL
 from cellmil.models.mil.head4type import LitHead4Type
+from cellmil.models.mil.clam import LitCLAM
 
 
 class SHAPExplainer:
@@ -85,7 +86,7 @@ class SHAPExplainer:
 
     def generate_explanation(
         self,
-        model: LitAttentionDeepMIL | LitHead4Type,
+        model: LitAttentionDeepMIL | LitHead4Type | LitCLAM,
         dataset_folder: Path | str,
         data: pd.DataFrame,
         extractor: ExtractorType | list[ExtractorType],
@@ -98,7 +99,7 @@ class SHAPExplainer:
         Generate SHAP explanations for the given model and dataset.
 
         Args:
-            model: The MIL model to explain (AttentionDeepMIL or Head4Type)
+            model: The MIL model to explain (AttentionDeepMIL, Head4Type, or CLAM)
             dataset_folder: Path to the folder containing all slide data
             data: DataFrame with slide metadata (must have 'FULL_PATH' column)
             extractor: Feature extractor type used for the slides
@@ -183,7 +184,7 @@ class SHAPExplainer:
 
     def _validate_model(self, model: Pl.LightningModule) -> None:
         """Validate that the model is supported."""
-        supported_models = (LitAttentionDeepMIL, LitHead4Type)
+        supported_models = (LitAttentionDeepMIL, LitHead4Type, LitCLAM)
         if not isinstance(model, supported_models):
             raise ValueError(
                 f"Unsupported model type: {model.__class__.__name__}. "
@@ -310,10 +311,10 @@ class SHAPExplainer:
             # Collect results as they complete
             with tqdm(total=len(slide_names), desc="Loading slides") as pbar:
                 for future in as_completed(future_to_slide):
-                    result = future.result()
+                    result = future.result()  # type: ignore
                     pbar.update(1)
 
-                    if result is None:
+                    if result is None: # type: ignore
                         continue
 
                     # Store feature names from first slide (should be same for all)
@@ -322,7 +323,7 @@ class SHAPExplainer:
                         and result["feature_names"] is not None
                     ):
                         feature_names = result["feature_names"]
-                        logger.info(f"Captured {len(feature_names)} feature names")
+                        logger.info(f"Captured {len(feature_names)} feature names") # type: ignore
 
                     # Add to collections
                     all_features.append(result["features"])
