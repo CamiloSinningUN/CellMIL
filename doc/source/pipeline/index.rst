@@ -13,7 +13,7 @@ This section provides detailed documentation for all tools in the package. Each 
    graph_creation
    feature_extraction
    dataset_creation
-   mil_training
+   mil_training/index
 
 Overview
 ========
@@ -30,7 +30,7 @@ The typical workflow follows this sequence:
 3. :doc:`graph_creation` → Create spatial graphs from segmented cells
 4. :doc:`feature_extraction` → Compute quantitative features from cells
 5. :doc:`dataset_creation` → Process multiple slides into training datasets
-6. :doc:`mil_training` → Train Multiple Instance Learning models
+6. :doc:`mil_training/index` → Train Multiple Instance Learning models
 
 Quick Reference
 ==============
@@ -97,7 +97,7 @@ Machine Learning Tools
 These tools handle model training and inference:
 
 - :doc:`dataset_creation` - Prepare datasets for machine learning
-- :doc:`mil_training` - Train Multiple Instance Learning models  
+- :doc:`mil_training/index` - Train Multiple Instance Learning models  
 
 Performance Considerations
 =========================

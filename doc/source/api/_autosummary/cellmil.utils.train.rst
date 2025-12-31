@@ -13,7 +13,9 @@ cellmil.utils.train
 
    .. autosummary::
    
-      train_eval
+      get_extractors_from_name
+      get_lit_model_creator
+      preprocess_df
    
    
 

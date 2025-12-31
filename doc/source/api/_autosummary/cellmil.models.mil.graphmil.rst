@@ -18,6 +18,7 @@ cellmil.models.mil.graphmil
    .. autosummary::
    
       LitGraphMIL
+      LitSurvGraphMIL
    
    
 

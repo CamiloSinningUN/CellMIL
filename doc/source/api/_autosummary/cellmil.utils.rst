@@ -28,7 +28,9 @@
    :recursive:
 
    cellmil.utils.dataset_from_dataset
+   cellmil.utils.stain_normalization
    cellmil.utils.templates
    cellmil.utils.tools
    cellmil.utils.train
+   cellmil.utils.wandb
 

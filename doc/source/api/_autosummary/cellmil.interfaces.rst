@@ -27,9 +27,11 @@
    :toctree:
    :recursive:
 
+   cellmil.interfaces.AttentionExplainerConfig
    cellmil.interfaces.CellSegmenterConfig
    cellmil.interfaces.DatasetCreatorConfig
-   cellmil.interfaces.ExplainerCreatorConfig
+   cellmil.interfaces.EvaluationExternalValidatorConfig
+   cellmil.interfaces.EvaluationReporterConfig
    cellmil.interfaces.FeatureExtractorConfig
    cellmil.interfaces.FeatureVisualizerConfig
    cellmil.interfaces.GraphCreatorConfig
@@ -37,5 +39,6 @@
    cellmil.interfaces.MILPredictorConfig
    cellmil.interfaces.MILTrainerConfig
    cellmil.interfaces.PatchExtractorConfig
+   cellmil.interfaces.SHAPExplainerConfig
    cellmil.interfaces.StatsPrinterConfig
 

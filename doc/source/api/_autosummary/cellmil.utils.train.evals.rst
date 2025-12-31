@@ -9,14 +9,6 @@ cellmil.utils.train.evals
 
    
    
-   .. rubric:: Functions
-
-   .. autosummary::
-   
-      get_report
-      k_fold_train_eval
-      plot_sample_features
-   
    
 
    
@@ -28,4 +20,13 @@ cellmil.utils.train.evals
    
 
 
+
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   cellmil.utils.train.evals.k_fold_cross_validation
+   cellmil.utils.train.evals.utils
 

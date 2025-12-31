@@ -28,6 +28,7 @@
    :recursive:
 
    cellmil.datamodels.datasets
+   cellmil.datamodels.model
    cellmil.datamodels.transforms
    cellmil.datamodels.wsi
 
