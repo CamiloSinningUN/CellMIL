@@ -53,22 +53,6 @@ A flexible and modular framework for cell-level feature extraction and interacti
 
 ## Installation
 
-### Quick Install (Package Users)
-
-For users who want to use CellMIL as a package without modifying the source code.
-
-#### 🚧 Install CellMIL 🚧
-
-```bash
-pip install cellmil
-```
-
-> **Note:** This will automatically install PyTorch and PyTorch Geometric with CUDA 11.8 support. If you need a different CUDA version, install PyTorch and PyTorch Geometric manually first from [pytorch.org](https://pytorch.org/get-started/locally/) and [PyG installation guide](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html), then install CellMIL.
-
-> **Optional:** Install cucim for GPU-accelerated image loading from their [official documentation](https://docs.rapids.ai/api/cucim/stable/)
-
----
-
 ### Development Setup
 
 For users who want to modify the code or contribute to the project. This is the **recommended** approach for researchers and developers.

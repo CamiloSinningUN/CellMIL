@@ -8,33 +8,6 @@ System Requirements
 - CUDA-compatible GPU (recommended for deep learning models)
 - Conda package manager or Poetry (for development setup)
 
-Quick Install (Package Users)
-==============================
-
-For users who want to use CellMIL as a package without modifying the source code.
-
-🚧 Install CellMIL 🚧
----------------------
-
-.. code-block:: bash
-
-   pip install cellmil
-
-.. note::
-
-   This will automatically install PyTorch and PyTorch Geometric with CUDA 11.8 support. If you need a different CUDA version, install PyTorch and PyTorch Geometric manually first from `pytorch.org <https://pytorch.org/get-started/locally/>`_ and `PyG installation guide <https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html>`_, then install CellMIL.
-
-Install Additional Dependencies
---------------------------------
-
-.. code-block:: bash
-
-   # For radiomics feature extraction
-   pip install pyradiomics
-
-   # For GPU-accelerated image loading (optional)
-   # See: https://docs.rapids.ai/api/cucim/stable/
-
 Development Setup
 =================
 
