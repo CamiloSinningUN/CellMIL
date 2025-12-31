@@ -4433,21 +4433,6 @@ files = [
 windows-terminal = ["colorama (>=0.4.6)"]
 
 [[package]]
-name = "pygments-styles"
-version = "0.3.0"
-description = "A curated collection of Pygments styles based on VS Code themes."
-optional = false
-python-versions = ">=3.9"
-groups = ["dev"]
-files = [
-    {file = "pygments_styles-0.3.0-py3-none-any.whl", hash = "sha256:c6c45e9939eb7590345bc9084113bac46c45f12b009d13422be02e80e84a034c"},
-    {file = "pygments_styles-0.3.0.tar.gz", hash = "sha256:67746b8fc6ff72c1179ca4d9a8bc89c7f54c196c2ff9d087f07392cd6fde3ecf"},
-]
-
-[package.dependencies]
-pygments = "*"
-
-[[package]]
 name = "pymc"
 version = "5.25.1"
 description = "Probabilistic Programming in Python: Bayesian Modeling and Probabilistic Machine Learning with PyTensor"
@@ -5491,18 +5476,17 @@ files = [
 
 [[package]]
 name = "shibuya"
-version = "2025.12.13"
+version = "2025.7.24"
 description = "A clean, responsive, and customizable Sphinx documentation theme with light/dark mode."
 optional = false
-python-versions = ">=3.10"
+python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "shibuya-2025.12.13-py3-none-any.whl", hash = "sha256:83a89aa6650fc21a9bff030ac0d464afed47aaa0ab72dd522bb630c31a5dd6fb"},
-    {file = "shibuya-2025.12.13.tar.gz", hash = "sha256:986c05b28da520ca20e8b503e816d80557208cfc43a9a7f2a150beda52250448"},
+    {file = "shibuya-2025.7.24-py3-none-any.whl", hash = "sha256:4b10f903e9f8dfbe1c511cb116b2737033764d123ec988afd5eec0d484aac95f"},
+    {file = "shibuya-2025.7.24.tar.gz", hash = "sha256:c4774702acc11a04847d3ae822b25e71429288cecdb69089ece00b33f7767168"},
 ]
 
 [package.dependencies]
-pygments-styles = "*"
 Sphinx = "*"
 
 [[package]]
@@ -7259,4 +7243,4 @@ test = ["pytest"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10, <3.13"
-content-hash = "4378f26a0183b4e075770ff6b00e1cd74996af8ad914f30ed8a7c65897d019ec"
+content-hash = "b06e962bd4867ad71df54472a651e98cdf43d04a3eec32a65c77e0fb6d27cc3b"

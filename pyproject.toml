@@ -73,7 +73,7 @@ eval_report = "cellmil.cli.eval_report:main"
 
 [tool.poetry.group.dev.dependencies]
 sphinx-copybutton = "^0.5.2"
-shibuya = "^2025.7.24"
+shibuya = "2025.7.24"
 sphinx = "5.3.0"
 
 
