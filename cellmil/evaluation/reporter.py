@@ -444,9 +444,9 @@ class EvaluationReporter:
                 if task_df.empty or metric not in task_df.columns:
                     continue
 
-                # Group by features, model, AND regularization to get separate means
+                # Group by features, model, regularization, AND stratification to get separate means
                 groups = task_df.groupby(  # type: ignore
-                    [COLUMN_FEATURES, COLUMN_MODEL, COLUMN_REG]
+                    [COLUMN_FEATURES, COLUMN_MODEL, COLUMN_REG, COLUMN_STRA]
                 )[metric].mean()
 
                 if not groups.empty:
@@ -534,6 +534,7 @@ class EvaluationReporter:
 
         # Find best values for bolding
         best_values = self._find_best_values_per_task(self.df, tasks, metrics)
+        print(best_values)
 
         # Generate LaTeX table
         latex = self._generate_table(df, tasks, metrics, config, best_values)
