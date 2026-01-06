@@ -254,6 +254,10 @@ This command takes the metadata excel and process all the slides present on it t
 create_dataset --excel_path ./data/metadata.xlsx --output_path ./results --gpu 0 --segmentation_models cellvit hovernet cellpose_sam --extractors handcrafted topology_measures --graph_methods knn radius
 ```
 
+### Training MIL Models
+
+After preparing your dataset, you can train Multiple Instance Learning models on your processed slides. For detailed instructions on configuring and training MIL models, please refer to the [MIL Training Documentation](https://camilosinningun.github.io/CellMIL/pipeline/mil_training/index.html).
+
 ## Technical Details
 
 ### Supported Input Formats
