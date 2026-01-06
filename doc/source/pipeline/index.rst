@@ -41,19 +41,19 @@ Basic CLI Commands
 .. code-block:: bash
 
    # Extract patches from a slide
-   poetry run patch_extraction --output_path ./results --wsi_path ./data/slide.svs --patch_size 1024 --patch_overlap 6.25 --target_mag 20.0
+   patch_extraction --output_path ./results --wsi_path ./data/slide.svs --patch_size 1024 --patch_overlap 6.25 --target_mag 20.0
 
    # Segment cells in patches
-   poetry run cell_segmentation --model cellvit --gpu 0 --wsi_path ./data/slide.svs --patched_slide_path ./results/slide
+   cell_segmentation --model cellvit --gpu 0 --wsi_path ./data/slide.svs --patched_slide_path ./results/slide
 
    # Create spatial graphs from segmented cells
-   poetry run graph_creation --methods knn --patched_slide_path ./results/slide --segmentation_model cellvit
+   graph_creation --methods knn --patched_slide_path ./results/slide --segmentation_model cellvit
 
    # Extract features from segmented cells
-   poetry run feature_extraction --extractor pyradiomics --wsi_path ./data/slide.svs --patched_slide_path ./results/slide --segmentation_model cellvit
+   feature_extraction --extractor pyradiomics --wsi_path ./data/slide.svs --patched_slide_path ./results/slide --segmentation_model cellvit
 
    # Create a dataset from multiple slides
-   poetry run create_dataset --excel_path ./data/metadata.xlsx --output_path ./datasets --gpu 0 --segmentation_models cellvit hovernet --extractors morphometrics pyradiomics
+   create_dataset --excel_path ./data/metadata.xlsx --output_path ./datasets --gpu 0 --segmentation_models cellvit hovernet --extractors morphometrics pyradiomics
 
 Common Parameters
 -----------------
@@ -140,10 +140,10 @@ Each tool provides built-in help:
 .. code-block:: bash
 
    # Get help for any tool
-   poetry run patch_extraction --help
-   poetry run cell_segmentation --help
-   poetry run graph_creation --help
-   poetry run feature_extraction --help
+   patch_extraction --help
+   cell_segmentation --help
+   graph_creation --help
+   feature_extraction --help
 
 Documentation Resources
 ----------------------

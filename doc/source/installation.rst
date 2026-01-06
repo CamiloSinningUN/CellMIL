@@ -69,7 +69,7 @@ To verify that the installation was successful, try running:
 .. code-block:: bash
 
    # Check if the CLI tools are available
-   poetry run patch_extraction --help
+   patch_extraction --help
 
 You should see help messages for each command without any errors.
 

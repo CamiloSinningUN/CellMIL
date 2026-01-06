@@ -155,7 +155,7 @@ Basic Command
 
 .. code-block:: bash
 
-   poetry run feature_extraction [OPTIONS]
+   feature_extraction [OPTIONS]
 
 Required Arguments
 ------------------
@@ -185,7 +185,7 @@ Complete Example
 
 .. code-block:: bash
 
-   poetry run feature_extraction \
+   feature_extraction \
        --extractor pyradiomics_gray \
        --wsi_path ./data/C3L-00001-21.svs \
        --patched_slide_path ./results/C3L-00001-21 \

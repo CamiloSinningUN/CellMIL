@@ -69,7 +69,7 @@ Basic Command
 
 .. code-block:: bash
 
-   poetry run graph_creation [OPTIONS]
+   graph_creation [OPTIONS]
 
 Required Arguments
 ------------------
@@ -102,7 +102,7 @@ Complete Example
 
 .. code-block:: bash
 
-   poetry run graph_creation --method knn --gpu 0 --patched_slide_path /path/to/segmentation/results --segmentation_model cellvit
+   graph_creation --method knn --gpu 0 --patched_slide_path /path/to/segmentation/results --segmentation_model cellvit
 
 This command will:
 

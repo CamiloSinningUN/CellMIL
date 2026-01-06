@@ -58,7 +58,7 @@ Basic Command
 
 .. code-block:: bash
 
-   poetry run cell_segmentation [OPTIONS]
+   cell_segmentation [OPTIONS]
 
 Required Arguments
 ------------------
@@ -89,7 +89,7 @@ Complete Example
 
 .. code-block:: bash
 
-   poetry run cell_segmentation \
+   cell_segmentation \
        --model cellvit \
        --gpu 0 \
        --wsi_path ./data/C3L-00001-21.svs \

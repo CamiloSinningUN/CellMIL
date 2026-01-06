@@ -23,7 +23,7 @@ Basic Command
 
 .. code-block:: bash
 
-   poetry run patch_extraction [OPTIONS]
+   patch_extraction [OPTIONS]
 
 Required Arguments
 ------------------
@@ -53,7 +53,7 @@ Complete Example
 
 .. code-block:: bash
 
-   poetry run patch_extraction \
+   patch_extraction \
        --output_path ./results \
        --wsi_path ./data/C3L-00001-21.svs \
        --patch_size 1024 \

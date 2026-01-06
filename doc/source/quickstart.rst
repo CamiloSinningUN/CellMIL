@@ -33,7 +33,7 @@ Extract patches from your WSI with specified parameters:
 
 .. code-block:: bash
 
-   poetry run patch_extraction \
+   patch_extraction \
        --output_path ./results \
        --wsi_path ./data/C3L-00001-21.svs \
        --patch_size 1024 \
@@ -55,7 +55,7 @@ Segment cells within the extracted patches using your preferred model:
 
 .. code-block:: bash
 
-   poetry run cell_segmentation \
+   cell_segmentation \
        --model cellvit \
        --gpu 0 \
        --wsi_path ./data/C3L-00001-21.svs \
@@ -80,7 +80,7 @@ Create spatial graphs from the segmented cells:
 
 .. code-block:: bash
 
-   poetry run graph_creation \
+   graph_creation \
        --method knn \
        --gpu 0 \
        --patched_slide_path ./results/C3L-00001-21 \
@@ -105,7 +105,7 @@ Step 4: Feature Extraction
 Extract morphological features from the segmented cells:
 
 .. code-block:: bash
-   poetry run feature_extraction \
+   feature_extraction \
       --extractor pyradiomics_gray \
       --wsi_path ./data/C3L-00001-21.svs \
       --patched_slide_path ./results/C3L-00001-21 \
@@ -114,7 +114,7 @@ Extract morphological features from the segmented cells:
 Extract Topological features from the segmented cells and created graph:
 
 .. code-block:: bash
-   poetry run feature_extraction \
+   feature_extraction \
        --extractor connectivity \
        --patched_slide_path ./results/C3L-00001-21 \
        --segmentation_model cellvit \
@@ -139,7 +139,7 @@ Visualize the extracted features:
 
 .. code-block:: bash
 
-   poetry run vis_features \
+   vis_features \
        --patched_slide_path ./results/C3L-00001-21
 
 This will generate visualizations of the feature distributions and correlation patterns.

@@ -17,7 +17,7 @@ Basic Command
 
 .. code-block:: bash
 
-   poetry run create_dataset [OPTIONS]
+   create_dataset [OPTIONS]
 
 Required Arguments
 ------------------
@@ -56,7 +56,7 @@ Complete Example
 
 .. code-block:: bash
 
-   poetry run create_dataset \
+   create_dataset \
        --excel_path ./data/metadata.xlsx \
        --output_path ./datasets/training_set \
        --gpu 0 \
@@ -177,7 +177,7 @@ The tool supports resumption of interrupted processing:
 .. code-block:: bash
 
    # Resume interrupted processing
-   poetry run create_dataset \
+   create_dataset \
        --excel_path ./data/metadata.xlsx \
        --output_path ./datasets/training_set \
        --gpu 0 \
