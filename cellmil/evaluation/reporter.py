@@ -152,6 +152,8 @@ class EvaluationReporter:
             table_type="classification",
             include_stratified=True,
             classification_metrics=["f1", "recall"],
+            caption="\\textbf{Classification performance across all tasks (cell-stratified).} Performance measured by Macro-F1 and Balanced Accuracy for binary classification tasks. Results show mean $\\pm$ standard deviation across label-stratified 5-fold cross-validation with additional stratification by cell cardinality. ``All'' refers to the use of all feature groups with correlation filtering ($\\rho < 0.95$). Bold values indicate best performance per task and metric.",
+            label="tab:results_classification_stratified",
             **base_config,
         )
 
@@ -162,6 +164,8 @@ class EvaluationReporter:
             table_type="classification",
             include_stratified=False,
             classification_metrics=["f1", "recall"],
+            caption="\\textbf{Classification performance across all tasks.} Performance measured by Macro-F1 and Balanced Accuracy for binary classification tasks. Results show mean $\\pm$ standard deviation across label-stratified 5-fold cross-validation. ``All'' refers to the use of all feature groups with correlation filtering ($\\rho < 0.95$). Bold values indicate best performance per task and metric.",
+            label="tab:results_classification",
             **base_config,
         )
 
@@ -170,6 +174,8 @@ class EvaluationReporter:
             table_type="survival",
             include_stratified=True,
             survival_metrics=["c_index"],
+            caption="\\textbf{Survival analysis performance across survival tasks (cell-stratified).} Performance measured by Concordance Index (C-Index) for survival prediction tasks. Results show mean $\\pm$ standard deviation across label-stratified 5-fold cross-validation with additional stratification by cell cardinality. ``All'' refers to the use of all feature groups with correlation filtering ($\\rho < 0.95$). Bold values indicate best performance per task.",
+            label="tab:results_survival_stratified",
             **base_config,
         )
 
@@ -178,6 +184,8 @@ class EvaluationReporter:
             table_type="survival",
             include_stratified=False,
             survival_metrics=["c_index"],
+            caption="\\textbf{Survival analysis performance across survival tasks.} Performance measured by Concordance Index (C-Index) for survival prediction tasks. Results show mean $\\pm$ standard deviation across label-stratified 5-fold cross-validation. ``All'' refers to the use of all feature groups with correlation filtering ($\\rho < 0.95$). Bold values indicate best performance per task.",
+            label="tab:results_survival",
             **base_config,
         )
 
@@ -574,22 +582,24 @@ class EvaluationReporter:
         num_tasks = len(tasks)
         total_cols = 2 + num_tasks * num_metrics  # FEATURES + MODEL + task columns
 
-        # Column specification
-        col_spec = "|p{3cm}|C{1.8cm}||"
-        for _ in range(num_tasks):
-            col_spec += "|".join(["C{1.3cm}"] * num_metrics) + "|"
+        # Column specification - adjust based on number of metrics
+        if num_metrics == 1:
+            # Single metric: use wider columns
+            col_spec = "|p{2.3cm}|C{2cm}||"
+            for _ in range(num_tasks):
+                col_spec += "C{2.2cm}|"
+        else:
+            # Multiple metrics: use narrower columns
+            col_spec = "|p{2cm}|C{1.8cm}||"
+            for _ in range(num_tasks):
+                col_spec += "|".join(["C{1.1cm}"] * num_metrics) + "|"
 
         latex_lines: list[str] = []
-        latex_lines.append("\\footnotesize")
+        latex_lines.append("{")
+        latex_lines.append("\\scriptsize")
         latex_lines.append("\\setlength{\\tabcolsep}{2pt}")
         latex_lines.append("\\renewcommand{\\arraystretch}{1.5}")
         latex_lines.append(f"\\begin{{longtable}}{{{col_spec}}}")
-
-        # Caption and label
-        if config.caption:
-            latex_lines.append(f"    \\caption{{{config.caption}}}")
-        if config.label:
-            latex_lines.append(f"    \\label{{{config.label}}}")
 
         # Header
         latex_lines.append("    \\toprule")
@@ -657,6 +667,13 @@ class EvaluationReporter:
             latex_lines.append(support_line)
 
         latex_lines.append("    \\bottomrule")
+
+        # Caption and label at bottom
+        if config.caption:
+            latex_lines.append(f"    \\caption{{{config.caption}}}")
+        if config.label:
+            latex_lines.append(f"    \\label{{{config.label}}}")
+
         latex_lines.append("    \\endlastfoot")
         latex_lines.append("    ")
 
@@ -748,6 +765,7 @@ class EvaluationReporter:
 
         latex_lines.append("    \\midrule")
         latex_lines.append("\\end{longtable}")
+        latex_lines.append("}")
 
         return "\n".join(latex_lines)
 
