@@ -15,7 +15,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def stats_print(args: argparse.Namespace) -> None:
+def eval_report(args: argparse.Namespace) -> None:
     """Create statistics report."""
     try:
         config = EvaluationReporterConfig(
@@ -79,7 +79,7 @@ def main():
     parser = setup_parser()
     args = parser.parse_args()
 
-    stats_print(args)
+    eval_report(args)
 
 
 if __name__ == "__main__":

@@ -1,78 +1,51 @@
-import torch
-import wandb
-import numpy as np
+from pathlib import Path
+from typing import Any, cast
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import pandas as pd
-from enum import Enum
-from typing import Any, Literal, cast
-from dataclasses import dataclass
-
-import lightning as Pl
+import numpy as np
+import torch
+from tqdm import tqdm
 from lightning import Trainer
-from torch.utils.data import DataLoader as DataLoaderTorch
-from torch_geometric.loader import DataLoader as DataLoaderPyG  # type: ignore
-from sklearn.metrics import (  
-    accuracy_score, # type: ignore
+from sklearn.metrics import (
+    accuracy_score,  # type: ignore
     precision_recall_fscore_support,  # type: ignore
     roc_auc_score,  # type: ignore
-    classification_report,  # type: ignore
 )
+from torch.utils.data import DataLoader as DataLoaderTorch
+from torch_geometric.loader import DataLoader as DataLoaderPyG  # type: ignore
+from scipy import stats  # type: ignore
 
-from cellmil.datamodels.model import ModelStorage
+from cellmil.datamodels.datasets.cell_gnn_mil_dataset import CellGNNMILDataset
+from cellmil.datamodels.datasets.patch_gnn_mil_dataset import PatchGNNMILDataset
+from cellmil.datamodels.datasets.patch_mil_dataset import PatchMILDataset
+from cellmil.datamodels.datasets.cell_mil_dataset import CellMILDataset
 from cellmil.interfaces.EvaluationExternalValidatorConfig import (
     EvaluationExternalValidatorConfig,
+    FinalModel,
+    AggregationMethod,
 )
+from cellmil.interfaces.TableConfig import TableConfig
+from cellmil.datamodels.model import ModelStorage
+from cellmil.datamodels.datasets import MILDataset
+from cellmil.evaluation.visualization import TableGenerator, PlotGenerator
 from cellmil.utils import logger
 from cellmil.utils.train.metrics import ConcordanceIndex
 from cellmil.utils.train.evals.utils import is_survival_model
-
-
-class PredictionMode(str, Enum):
-    """Prediction mode for external validation."""
-
-    final = "final"
-    ensemble = "ensemble"
-
-    @classmethod
-    def values(cls):
-        return [member.value for member in cls]
-
-    def __str__(self):
-        return self.value
-
-
-@dataclass
-class ValidationResults:
-    """Results from external validation."""
-
-    mode: str
-    task_type: str  # "classification" or "survival"
-    metrics: dict[str, Any]
-    predictions: pd.DataFrame
-    aggregated_report: dict[str, Any] | None = None
+from cellmil.utils.train import get_lit_model_creator
+from cellmil.utils.train import get_extractors_from_name, preprocess_df
+from cellmil.interfaces.CellSegmenterConfig import ModelType
+from cellmil.interfaces.GraphCreatorConfig import GraphCreatorType
 
 
 class ExternalValidator:
     """
     External validator for evaluating trained models on independent test sets.
 
-    Supports two prediction modes:
-    - final: Uses the single final model trained on averaged epochs
-    - ensemble: Uses ensemble predictions from all fold models
-      - Ensemble methods: mean, median, majority, weighted
-      - Weighted method uses fold validation performance for weighting
-
-    Handles both classification and survival analysis tasks.
-    
-    For classification:
-    - Extracts class probabilities from model outputs
-    - Enables weighted mean/median aggregation of probabilities
-    - Calculates AUROC metrics when probabilities available
-    - Falls back to majority voting when probabilities unavailable
-    
-    For survival:
-    - Works with logits from discrete-time hazard models
-    - Aggregates logits before converting to risk scores
-    - Uses ConcordanceIndex metric for evaluation
+    This class:
+    1. Loads models from directories (using ModelStorage)
+    2. Runs them on external validation datasets
+    3. Calculates metrics from predictions
+    4. Generates plots and tables similar to EvaluationReporter
     """
 
     def __init__(self, config: EvaluationExternalValidatorConfig):
@@ -80,126 +53,284 @@ class ExternalValidator:
         Initialize external validator.
 
         Args:
-            config: Configuration containing model path
+            config: Configuration for external validation
         """
         self.config = config
-        self.model_storage = ModelStorage.from_directory(self.config.model_path)
+        self.df = pd.DataFrame()
 
-        # Validate that model storage has necessary data
-        if not self.model_storage.experiment_metadata:
-            raise ValueError("Model storage does not contain experiment metadata")
+        # TODO: Make configurable
+        self.n_bins = 4
+
+        # TODO: ------
+
+        # Ensure output directory exists
+        self.config.output_dir.mkdir(parents=True, exist_ok=True)
 
         logger.info(
-            f"Loaded model: {self.model_storage.experiment_name} "
-            f"with {len(self.model_storage.list_folds())} folds"
+            f"External Validator initialized with output dir: {self.config.output_dir}"
         )
 
-    def validate(
-        self,
-        test_dataloader: DataLoaderTorch[Any] | DataLoaderPyG,
-        lit_model_class: type[Pl.LightningModule],
-        mode: PredictionMode = PredictionMode.final,
-        ensemble_method: Literal["mean", "median", "majority", "weighted"] = "mean",
-        wandb_project: str | None = None,
-        save_predictions: bool = True,
-    ) -> ValidationResults:
+    def validate(self):
         """
-        Perform external validation on test data.
+        Run external validation on all models and generate reports.
 
-        Args:
-            test_dataloader: DataLoader containing test samples
-            lit_model_class: Lightning module class to instantiate models
-            mode: Prediction mode ("final" or "ensemble")
-            ensemble_method: Method for ensemble aggregation ("mean", "median", "majority")
-            wandb_project: Optional wandb project name for logging
-            save_predictions: Whether to save predictions to disk
+        This is the main entry point that:
+        1. Discovers all model directories
+        2. Loads external validation dataset for each model
+        3. Runs predictions and calculates metrics
+        4. Aggregates results into DataFrame
+        5. Generates plots and tables
+        """
+        logger.info("Starting external validation process...")
+
+        # Discover all model directories
+        model_dirs = self._discover_model_directories()
+        logger.info(f"Found {len(model_dirs)} model directories to validate")
+
+        # Process each model and collect results
+        self._process_models(model_dirs)
+
+        if self.df.empty:
+            logger.error(
+                "No models were successfully processed. Cannot generate reports."
+            )
+            return
+
+        logger.info(f"Successfully processed {len(self.df)} model configurations")
+
+        # Generate plots and tables
+        self.create_plots()
+        self.create_tables()
+
+        logger.info("External validation completed successfully!")
+
+    def _discover_model_directories(self) -> list[Path]:
+        """
+        Discover all model directories in the models_dir.
 
         Returns:
-            ValidationResults containing metrics and predictions
+            List of paths to valid model directories
         """
-        logger.info(f"Starting external validation with mode: {mode}")
+        models_dir = Path(self.config.models_dir)
 
-        # Initialize wandb if requested
-        if wandb_project:
-            wandb.login()
-            wandb.init(
-                project=wandb_project,
-                name=f"{self.model_storage.experiment_name}_external_val_{mode}",
-                config={
-                    "experiment": self.model_storage.experiment_name,
-                    "mode": str(mode),
-                    "ensemble_method": ensemble_method if mode == PredictionMode.ensemble else None,
-                },
-            )
+        if not models_dir.exists():
+            raise FileNotFoundError(f"Models directory not found: {models_dir}")
 
-        # Generate predictions based on mode
-        if mode == PredictionMode.final:
-            predictions_df = self._predict_final(
-                test_dataloader, lit_model_class
-            )
-        elif mode == PredictionMode.ensemble:
-            predictions_df = self._predict_ensemble(
-                test_dataloader, lit_model_class, method=ensemble_method
-            )
-        else:
-            raise ValueError(f"Unknown prediction mode: {mode}")
+        # Find directories containing experiment_metadata.json
+        model_dirs: list[Path] = []
+        for path in models_dir.iterdir():
+            if path.is_dir() and (path / "experiment_metadata.json").exists():
+                model_dirs.append(path)
 
-        # Detect task type
-        task_type = self._detect_task_type(predictions_df)
-        logger.info(f"Detected task type: {task_type}")
+        return sorted(model_dirs)
 
-        # Calculate metrics
-        metrics, report = self._calculate_metrics(predictions_df, task_type)
+    def _process_models(self, model_dirs: list[Path]):
+        """
+        Process all model directories and collect results.
 
-        # Log to wandb if enabled
-        if wandb_project:
-            wandb.log(metrics)
-            if report:
-                wandb.log({"classification_report": wandb.Table(dataframe=pd.DataFrame(report))})
+        Args:
+            model_dirs: List of model directory paths
+        """
 
-        # Save predictions to disk
-        if save_predictions:
-            self._save_predictions(predictions_df, metrics, mode, task_type)
+        def process_single_model(model_dir: Path) -> dict[str, Any] | None:
+            """Process a single model directory."""
+            try:
+                return self._evaluate_model(model_dir)
+            except Exception as e:
+                logger.error(f"Failed to process model {model_dir.name}: {e}")
+                return None
 
-        # Create results object
-        results = ValidationResults(
-            mode=str(mode),
-            task_type=task_type,
-            metrics=metrics,
-            predictions=predictions_df,
-            aggregated_report=report,
+        results: list[dict[str, Any]] = []
+
+        # Use ThreadPoolExecutor for parallel processing
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            future_to_dir = {
+                executor.submit(process_single_model, model_dir): model_dir
+                for model_dir in model_dirs
+            }
+
+            with tqdm(total=len(model_dirs), desc="Evaluating models") as pbar:
+                for future in as_completed(future_to_dir):
+                    result = future.result()
+                    if result is not None:
+                        results.append(result)
+                    pbar.update(1)
+
+        # Convert to DataFrame
+        self.df = pd.DataFrame(results)
+        logger.info(f"Collected results from {len(results)} models")
+
+    def _evaluate_model(self, model_dir: Path) -> dict[str, Any]:
+        """
+        Evaluate a single model on external validation dataset.
+
+        Args:
+            model_dir: Path to model directory
+
+        Returns:
+            Dictionary with experiment info and metrics
+        """
+        # Load model storage
+        model_storage = ModelStorage.from_directory(model_dir)
+
+        if not model_storage.experiment_metadata:
+            raise ValueError(f"No experiment metadata found for {model_dir}")
+
+        experiment_name = model_storage.experiment_metadata.name
+        logger.info(f"Evaluating model: {experiment_name}")
+
+        # Parse experiment name: TASK+FEATURES+MODEL+REG+STRA
+        components = self._parse_experiment_name(experiment_name)
+
+        # Create dataset for this model configuration
+        dataset = self._create_dataset(
+            task=components["task"],
+            features=components["features"],
+            model=components["model"],
         )
 
-        logger.info(f"External validation completed. Metrics: {metrics}")
+        # Create dataloader based on dataset type
+        if isinstance(dataset, (CellGNNMILDataset, PatchGNNMILDataset)):
+            dataloader = DataLoaderPyG(dataset, batch_size=1, shuffle=False)
+        else:
+            dataloader = DataLoaderTorch(dataset, batch_size=1, shuffle=False)
 
-        if wandb_project:
-            wandb.finish()
+        # Get lit_model_creator
+        lit_model_creator = get_lit_model_creator(
+            model=components["model"],
+            task=components["task"],
+            n_bins=self.n_bins,
+            feature=components["features"],
+            df=self._load_metadata_df(),
+            regularization=(components["reg"] == "REG"),
+        )
 
-        return results
+        # Run predictions
+        predictions_df = self._run_predictions(
+            model_storage=model_storage,
+            dataloader=dataloader,
+            lit_model_creator=lit_model_creator,
+        )
+
+        # Calculate metrics
+        task_type = self._detect_task_type(predictions_df)
+        metrics = self._calculate_metrics(predictions_df, task_type)
+
+        # Build result dictionary
+        result: dict[str, Any] = {
+            "experiment_id": experiment_name,
+            "task": components["task"],
+            "features": components["features"],
+            "model": components["model"],
+            "reg": components["reg"],
+            "stra": components["stra"],
+            **metrics,
+        }
+
+        logger.info(f"Completed evaluation for {experiment_name}: {metrics}")
+
+        return result
+
+    def _parse_experiment_name(self, name: str) -> dict[str, str]:
+        """
+        Parse experiment name in format: TASK+FEATURES+MODEL+REG+STRA
+
+        Args:
+            name: Experiment name
+
+        Returns:
+            Dictionary with parsed components
+        """
+        parts = name.split("+")
+        if len(parts) != 5:
+            raise ValueError(f"Invalid experiment name format: {name}")
+
+        return {
+            "task": parts[0],
+            "features": parts[1],
+            "model": parts[2],
+            "reg": parts[3],
+            "stra": parts[4],
+        }
+
+    def _create_dataset(
+        self, task: str, features: str, model: str
+    ) -> CellMILDataset | PatchMILDataset:
+        """
+        Create external validation dataset.
+
+        Args:
+            task: Task name
+            features: Feature type
+            model: Model name
+
+        Returns:
+            MILDataset for external validation
+        """
+
+        # Load metadata
+        df = self._load_metadata_df()
+        df = preprocess_df(df, task)
+
+        # Get extractors
+        extractors = get_extractors_from_name(features)
+
+        # Create dataset
+        dataset = MILDataset(
+            root=self.config.root_dir,
+            label=task if task not in ["OS", "PFS"] else ("duration", "event"),
+            folder=self.config.dataset_dir,
+            data=df,
+            extractor=extractors,
+            segmentation_model=ModelType.cellvit,
+            graph_creator=GraphCreatorType.delaunay_radius,
+            cell_type=True if model == "HEAD4TYPE" else False,
+        )
+
+        return dataset
+
+    def _load_metadata_df(self) -> pd.DataFrame:
+        """Load metadata DataFrame."""
+        return pd.read_excel(self.config.dp_metadata_file)  # type: ignore
+
+    def _run_predictions(
+        self,
+        model_storage: ModelStorage,
+        dataloader: Any,
+        lit_model_creator: Any,
+    ) -> pd.DataFrame:
+        """
+        Run predictions using either final model or ensemble.
+
+        Args:
+            model_storage: Model storage object
+            dataloader: Data loader
+            lit_model_creator: Function to create lightning module
+
+        Returns:
+            DataFrame with predictions and labels
+        """
+        if self.config.final_model == FinalModel.final:
+            return self._predict_final(model_storage, dataloader, lit_model_creator)
+        else:
+            return self._predict_ensemble(
+                model_storage,
+                dataloader,
+                lit_model_creator,
+                self.config.aggregation_method,
+            )
 
     def _predict_final(
         self,
-        dataloader: DataLoaderTorch[Any] | DataLoaderPyG,
-        lit_model_class: type[Pl.LightningModule],
+        model_storage: ModelStorage,
+        dataloader: Any,
+        lit_model_creator: Any,
     ) -> pd.DataFrame:
-        """
-        Generate predictions using the final model.
-
-        Args:
-            dataloader: Test data loader
-            lit_model_class: Lightning module class
-
-        Returns:
-            DataFrame with predictions
-        """
-        logger.info("Generating predictions with final model...")
-
-        # Load final checkpoint
-        checkpoint_path = self.model_storage.load_final_checkpoint()
-        model = lit_model_class.load_from_checkpoint(checkpoint_path) # type: ignore
+        """Generate predictions using final model."""
+        checkpoint_path = model_storage.load_final_checkpoint()
+        model = lit_model_creator().load_from_checkpoint(checkpoint_path)
         model.eval()
 
-        # Use trainer for predictions (handles device management automatically)
         trainer = Trainer(
             accelerator="auto",
             devices=1,
@@ -212,26 +343,14 @@ class ExternalValidator:
 
     def _predict_ensemble(
         self,
-        dataloader: DataLoaderTorch[Any] | DataLoaderPyG,
-        lit_model_class: type[Pl.LightningModule],
-        method: Literal["mean", "median", "majority", "weighted"] = "mean",
+        model_storage: ModelStorage,
+        dataloader: Any,
+        lit_model_creator: Any,
+        method: AggregationMethod,
     ) -> pd.DataFrame:
-        """
-        Generate ensemble predictions from all fold models.
+        """Generate ensemble predictions from all folds."""
+        fold_indices = model_storage.list_folds()
 
-        Args:
-            dataloader: Test data loader
-            lit_model_class: Lightning module class
-            method: Ensemble method ("mean", "median", or "majority")
-
-        Returns:
-            DataFrame with ensemble predictions
-        """
-        logger.info(f"Generating ensemble predictions with method: {method}...")
-
-        fold_indices = self.model_storage.list_folds()
-        
-        # Create trainer once
         trainer = Trainer(
             accelerator="auto",
             devices=1,
@@ -240,234 +359,138 @@ class ExternalValidator:
             enable_checkpointing=False,
         )
 
-        # Collect predictions from all folds
         all_fold_predictions: list[pd.DataFrame] = []
 
         for fold_idx in fold_indices:
-            logger.info(f"  Processing fold {fold_idx}...")
-            checkpoint_path = self.model_storage.load_fold_checkpoint(fold_idx)
-            model = lit_model_class.load_from_checkpoint(checkpoint_path)  # type: ignore
+            checkpoint_path = model_storage.load_fold_checkpoint(fold_idx)
+            model = lit_model_creator().load_from_checkpoint(checkpoint_path)
             model.eval()
 
             fold_preds = self._get_predictions_from_trainer(trainer, model, dataloader)
             all_fold_predictions.append(fold_preds)
 
-        # Combine predictions using specified method
         return self._aggregate_fold_predictions(all_fold_predictions, method)
 
     def _get_predictions_from_trainer(
         self,
         trainer: Trainer,
-        model: Pl.LightningModule,
-        dataloader: DataLoaderTorch[Any] | DataLoaderPyG,
+        model: Any,
+        dataloader: Any,
     ) -> pd.DataFrame:
-        """
-        Extract predictions using Lightning Trainer.
+        """Extract predictions using Lightning Trainer."""
+        y_pred = cast(list[Any], trainer.predict(model, dataloader))
 
-        Args:
-            trainer: Lightning trainer
-            model: Lightning module
-            dataloader: Data loader
-
-        Returns:
-            DataFrame with predictions and true labels
-        """
-        # Get predictions using trainer
-        y_pred = trainer.predict(model, dataloader)
-
-        # Extract true labels from dataloader
+        # Extract true labels based on dataloader type
         if isinstance(dataloader, DataLoaderPyG):
-            y_true = [data.y for data in dataloader]
+            y_true = [batch.y for batch in dataloader]
         else:
             y_true = [batch[-1] for batch in dataloader]
 
-        # Detect if this is a survival model
+        # Check if survival model
         is_surv = is_survival_model(model)
 
         if is_surv:
-            # For survival, use trainer.predict as before
-            if y_pred is None:
-                raise ValueError("Predictions returned by trainer.predict() should not be None")
             return self._process_survival_predictions(y_pred, y_true)
         else:
-            # For classification, manually run inference to get probabilities
-            return self._get_classification_predictions(model, dataloader)
-
-    def _get_classification_predictions(
-        self,
-        model: Pl.LightningModule,
-        dataloader: DataLoaderTorch[Any] | DataLoaderPyG,
-    ) -> pd.DataFrame:
-        """
-        Extract classification predictions with probabilities by running manual inference.
-        
-        Args:
-            model: Lightning module
-            dataloader: Data loader
-            
-        Returns:
-            DataFrame with predictions, probabilities, and true labels
-        """
-        model.eval()
-        device = next(model.parameters()).device
-        
-        all_predictions: list[int] = []
-        all_probabilities: list[np.ndarray[Any, Any]] = []
-        all_labels: list[int] = []
-        
-        with torch.no_grad():
-            for batch in dataloader:
-                # Handle different data types (graph vs tensor)
-                if isinstance(dataloader, DataLoaderPyG):
-                    # Graph data
-                    data = batch.to(device)
-                    labels = data.y
-                    
-                    # Forward pass
-                    logits, _ = model(data)
-                else:
-                    # Tensor data - MIL batch
-                    x, y = batch
-                    labels = y
-                    
-                    # Ensure MIL batch size is 1 and squeeze
-                    assert x.size(0) == 1, "Batch size must be 1 for MIL"
-                    x = x.squeeze(0).to(device)  # [n_instances, feat_dim]
-                    
-                    # Forward pass
-                    logits, _ = model(x)
-                
-                # Get probabilities from softmax
-                probabilities = torch.softmax(logits, dim=-1)
-                predictions = torch.argmax(probabilities, dim=-1)
-                
-                # Convert to numpy
-                probs_np = cast(np.ndarray[Any, Any], probabilities.cpu().numpy()) # type: ignore
-                preds_np = cast(np.ndarray[Any, Any], predictions.cpu().numpy()) # type: ignore
-                
-                # Handle labels
-                if isinstance(labels, torch.Tensor):
-                    labels_np = cast(np.ndarray[Any, Any], labels.cpu().numpy()) # type: ignore
-                    if labels_np.ndim > 0:
-                        labels_np = labels_np.flatten()
-                    else:
-                        labels_np = np.array([labels_np])
-                else:
-                    labels_np = np.array([labels])
-                
-                # Store results
-                all_predictions.extend(preds_np.flatten().tolist())
-                all_labels.extend(labels_np.tolist())
-                
-                # Store probabilities (handle both multi-class and binary)
-                if probs_np.ndim == 1:
-                    all_probabilities.append(probs_np)
-                else:
-                    # Squeeze batch dimension if present
-                    probs_squeezed = probs_np.squeeze()
-                    if probs_squeezed.ndim == 1:
-                        all_probabilities.append(probs_squeezed)
-                    else:
-                        # Should not happen with batch_size=1, but handle anyway
-                        all_probabilities.extend(probs_squeezed)
-        
-        # Create DataFrame
-        df = pd.DataFrame({
-            "y_true": all_labels,
-            "y_pred": all_predictions,
-        })
-        
-        # Add probability columns
-        probs_array = np.array(all_probabilities)
-        if probs_array.ndim == 2:
-            # Multi-class: add column for each class
-            n_classes = probs_array.shape[1]
-            for i in range(n_classes):
-                df[f"prob_class_{i}"] = probs_array[:, i]
-        else:
-            # Binary or single dimension
-            df["probability"] = probs_array
-        
-        return df
+            return self._process_classification_predictions(y_pred, y_true)
 
     def _process_survival_predictions(
         self, y_pred: list[Any], y_true: list[Any]
     ) -> pd.DataFrame:
-        """
-        Process survival predictions following k_fold approach.
+        """Process survival model predictions."""
 
-        Args:
-            y_pred: List of prediction tensors (logits from discrete-time hazard model)
-            y_true: List of true labels (duration, event) tuples or tensors
+        def _extract_survival_tensors(
+            target: Any,
+        ) -> tuple[torch.Tensor, torch.Tensor] | None:
+            """Normalize different target formats to (duration, event) tensors."""
 
-        Returns:
-            DataFrame with survival predictions
-        """
-        # Extract durations and events
-        durations: list[float] = []
-        events: list[float] = []
+            def _to_tensor(value: Any) -> torch.Tensor:
+                tensor = torch.as_tensor(value)
+                if tensor.ndim == 0:
+                    tensor = tensor.unsqueeze(0)
+                return tensor
+
+            if isinstance(target, dict):
+                key_duration = next(  # type: ignore
+                    (
+                        k
+                        for k in target  # type: ignore
+                        if k.lower() in {"duration", "durations", "time"}  # type: ignore
+                    ),
+                    None,
+                )
+                key_event = next(  # type: ignore
+                    (k for k in target if k.lower() in {"event", "events", "status"}),  # type: ignore
+                    None,
+                )
+                if key_duration is not None and key_event is not None:
+                    return _to_tensor(target[key_duration]), _to_tensor(
+                        target[key_event]
+                    )
+
+            if isinstance(target, (list, tuple)) and len(target) == 2:  # type: ignore
+                return _to_tensor(target[0]), _to_tensor(target[1])
+
+            if torch.is_tensor(target):
+                tensor = target
+                if tensor.ndim == 1 and tensor.numel() == 2:
+                    return tensor[0].view(1), tensor[1].view(1)
+                if tensor.ndim >= 1 and tensor.shape[-1] == 2:
+                    durations = tensor[..., 0].reshape(-1)
+                    events = tensor[..., 1].reshape(-1)
+                    return durations, events
+
+            return None
+
+        # Extract durations and events from labels
+        durations_list: list[torch.Tensor] = []
+        events_list: list[torch.Tensor] = []
 
         for label in y_true:
-            if isinstance(label, (tuple, list)) and len(label) == 2:  # type: ignore
-                label = cast(tuple[float, float], label)
-                durations.append(float(label[0]))
-                events.append(float(label[1]))
-            elif torch.is_tensor(label) and label.numel() == 2:
-                durations.append(float(label[0]))
-                events.append(float(label[1]))
-            else:
+            parsed = _extract_survival_tensors(label)
+            if parsed is None:
                 logger.warning(f"Unexpected label format: {label}")
-                durations.append(0.0)
-                events.append(0.0)
+                continue
+            dur_tensor, evt_tensor = parsed
+            durations_list.append(dur_tensor)
+            events_list.append(evt_tensor)
 
-        # Process predictions (logits)
-        # Store raw logits for metric computation
-        logits_list: list[torch.Tensor] = []
-        risk_scores: list[float] = []
+        if not durations_list or not events_list:
+            raise ValueError("No survival data found")
 
-        if isinstance(y_pred[0], torch.Tensor):
-            for pred in y_pred:  # type: ignore
-                logits = pred.cpu() if pred.is_cuda else pred  # type: ignore
-                logits_list.append(logits)
-                
-                # Calculate risk score for display (same as k_fold)
-                hazards = torch.sigmoid(logits)  # type: ignore
-                survival = torch.cumprod(1 - hazards, dim=0)
-                risk = -float(torch.sum(survival))
-                risk_scores.append(risk)
+        # Convert predictions to tensor (logits)
+        if len(y_pred) > 0:
+            if isinstance(y_pred[0], torch.Tensor):
+                # Predictions are logits with shape [1, num_bins] per sample
+                logits = torch.cat([pred.cpu() for pred in y_pred], dim=0)  # type: ignore
+            else:
+                logger.error("Unexpected prediction format")
+                logits = torch.zeros((len(durations_list), 1))  # type: ignore
         else:
-            risk_scores = [0.0] * len(durations)
-            # Create zero logits as fallback
-            for _ in range(len(durations)):
-                logits_list.append(torch.zeros(1))
+            logger.error("No predictions returned")
+            logits = torch.zeros((len(durations_list), 1))  # type: ignore
 
-        # Create DataFrame
-        df = pd.DataFrame({
-            "y_true_duration": durations,
-            "y_true_event": events,
-            "risk_score": risk_scores,
-        })
+        # Convert durations and events to tensors
+        durations = torch.cat([d.cpu().flatten() for d in durations_list])  # type: ignore
+        events = torch.cat([e.cpu().flatten() for e in events_list])  # type: ignore
 
-        # Store logits as a column (for ensemble averaging)
-        # We'll store them as numpy arrays
-        df["logits"] = [logits.cpu().numpy() for logits in logits_list] # type: ignore
+        # Store logits directly - ConcordanceIndex will convert them to risk scores internally
+        # We need to store each sample's logits as a list for proper DataFrame storage
+        logits_list = [logits[i].numpy().tolist() for i in range(logits.shape[0])]  # type: ignore
 
-        return df
+        return pd.DataFrame(
+            {
+                "duration": durations.numpy(),  # type: ignore
+                "event": events.numpy(),  # type: ignore
+                "logits": logits_list,  # Store logits, not risk scores
+            }
+        )
 
     def _process_classification_predictions(
         self, y_pred: list[Any], y_true: list[Any]
     ) -> pd.DataFrame:
-        """
-        Process classification predictions following k_fold approach.
-
-        Args:
-            y_pred: List of predictions (class indices)
-            y_true: List of true labels
-
-        Returns:
-            DataFrame with classification predictions
-        """
-        # Extract predicted classes
+        """Process classification model predictions."""
+        # Extract predictions
         if isinstance(y_pred[0], torch.Tensor):
             y_pred_flat = [pred.cpu().numpy().flatten()[0] for pred in y_pred]  # type: ignore
         else:
@@ -485,393 +508,275 @@ class ExternalValidator:
                 for true in y_true
             ]
 
-        df = pd.DataFrame({
-            "y_true": y_true_flat,
-            "y_pred": y_pred_flat,
-        })
-
-        return df
+        return pd.DataFrame(
+            {
+                "y_true": np.array(y_true_flat),
+                "y_pred": np.array(y_pred_flat),  # type: ignore
+            }
+        )
 
     def _aggregate_fold_predictions(
         self,
         fold_predictions: list[pd.DataFrame],
-        method: Literal["mean", "median", "majority", "weighted"],
+        method: AggregationMethod,
     ) -> pd.DataFrame:
-        """
-        Aggregate predictions from multiple folds.
-
-        Args:
-            fold_predictions: List of prediction DataFrames from each fold
-            method: Aggregation method
-
-        Returns:
-            Aggregated predictions DataFrame
-        """
-        # Use first fold as template
-        result_df = fold_predictions[0].copy()
-
-        # Determine task type
-        is_survival = "y_true_duration" in result_df.columns
-        
-        # Get fold weights if using weighted method
-        fold_weights = None
-        if method == "weighted":
-            fold_weights = self._get_fold_weights(is_survival)
-            logger.info(f"Fold weights: {fold_weights}")
+        """Aggregate predictions from multiple folds."""
+        # Check if survival or classification
+        is_survival = "logits" in fold_predictions[0].columns
 
         if is_survival:
-            # Aggregate logits for survival (before converting to risk)
-            if "logits" in result_df.columns:
-                # Stack all logits
-                all_logits = [df["logits"].tolist() for df in fold_predictions]
-                
-                # Aggregate logits
-                aggregated_logits: list[np.ndarray[Any, Any]] = []
-                for sample_idx in range(len(all_logits[0])):
-                    sample_logits = [
-                        fold_logits[sample_idx] for fold_logits in all_logits
-                    ]
-                    # Stack into array [n_folds, n_bins]
-                    stacked = np.stack(sample_logits, axis=0)
-                    
-                    if method == "mean":
-                        agg = np.mean(stacked, axis=0)
-                    elif method == "median":
-                        agg = np.median(stacked, axis=0)
-                    elif method == "weighted" and fold_weights is not None:
-                        # Weighted average using fold performance
-                        agg = np.average(stacked, axis=0, weights=fold_weights)
-                    else:
-                        # For survival, mean is most appropriate
-                        if method != "weighted":
-                            logger.warning(f"Method '{method}' not ideal for survival, using mean")
-                        agg = np.mean(stacked, axis=0)
-                    
-                    aggregated_logits.append(agg)
-                
-                # Convert aggregated logits back to risk scores
-                risk_scores: list[float] = []
-                for logits_np in aggregated_logits:
-                    logits_tensor = torch.from_numpy(logits_np) # type: ignore
-                    hazards = torch.sigmoid(logits_tensor)
-                    survival = torch.cumprod(1 - hazards, dim=0)
-                    risk = -float(torch.sum(survival))
-                    risk_scores.append(risk)
-                
-                result_df["risk_score"] = risk_scores
-                result_df["logits"] = aggregated_logits
-            else:
-                # Fallback: average risk scores directly (less accurate)
-                risk_scores = cast(np.ndarray[Any, Any], np.stack([df["risk_score"].values for df in fold_predictions])) # type: ignore
-                if method == "mean":
-                    result_df["risk_score"] = np.mean(risk_scores, axis=0)
-                elif method == "median":
-                    result_df["risk_score"] = np.median(risk_scores, axis=0)                
-                elif method == "weighted" and fold_weights is not None:
-                    result_df["risk_score"] = np.average(risk_scores, axis=0, weights=fold_weights)                
-                else:
-                    result_df["risk_score"] = np.mean(risk_scores, axis=0)
+            # For survival: aggregate logits (not risk scores)
+            # Convert logits lists back to tensors
+            all_logits: list[torch.Tensor] = []
+            for df in fold_predictions:
+                logits_list = df["logits"].tolist()
+                logits_tensor = torch.tensor(logits_list, dtype=torch.float32)
+                all_logits.append(logits_tensor)
 
+            # Stack and aggregate
+            stacked_logits = torch.stack(all_logits)  # [n_folds, n_samples, n_bins]
+
+            if (
+                method == AggregationMethod.mean
+                or method == AggregationMethod.weighted_mean
+            ):
+                aggregated_logits = torch.mean(stacked_logits, dim=0)
+            elif method == AggregationMethod.median:
+                aggregated_logits = torch.median(stacked_logits, dim=0)[0]
+            else:
+                raise ValueError(
+                    f"Unsupported aggregation method for survival: {method}"
+                )
+
+            # Convert back to list format for DataFrame
+            aggregated_logits_list = [
+                aggregated_logits[i].numpy().tolist()  # type: ignore
+                for i in range(aggregated_logits.shape[0])
+            ]
+
+            return pd.DataFrame(
+                {
+                    "duration": fold_predictions[0]["duration"].values,  # type: ignore
+                    "event": fold_predictions[0]["event"].values,  # type: ignore
+                    "logits": aggregated_logits_list,
+                }
+            )
         else:
-            # Classification task
-            # Check if we have probabilities
-            prob_cols = [col for col in result_df.columns if col.startswith("prob_")]
-            has_probs = len(prob_cols) > 0 or "probability" in result_df.columns
-            
-            if has_probs:
-                # Aggregate probabilities, then derive predictions
-                if prob_cols:
-                    # Multi-class probabilities
-                    for col in prob_cols:
-                        probs = cast(np.ndarray[Any, Any], np.stack([df[col].values for df in fold_predictions])) # type: ignore
-                        
-                        if method == "mean":
-                            result_df[col] = np.mean(probs, axis=0)
-                        elif method == "median":
-                            result_df[col] = np.median(probs, axis=0)
-                        elif method == "weighted" and fold_weights is not None:
-                            result_df[col] = np.average(probs, axis=0, weights=fold_weights)
-                        else:  # majority
-                            # For majority, still do voting on predictions below
-                            pass
-                    
-                    # Update predictions from aggregated probabilities (unless using majority)
-                    if method != "majority":
-                        prob_values = result_df[prob_cols].values
-                        result_df["y_pred"] = np.argmax(prob_values, axis=1)
-                    else:
-                        # Majority voting on predictions
-                        predictions = cast(np.ndarray[Any, Any], np.stack([df["y_pred"].values for df in fold_predictions])) # type: ignore
-                        result_df["y_pred"] = np.apply_along_axis(
-                            lambda x: np.bincount(x.astype(int)).argmax(), axis=0, arr=predictions
-                        )
-                
-                elif "probability" in result_df.columns:
-                    # Binary classification
-                    probs = cast(np.ndarray[Any, Any], np.stack([df["probability"].values for df in fold_predictions])) # type: ignore
-                    
-                    if method == "mean":
-                        result_df["probability"] = np.mean(probs, axis=0)
-                    elif method == "median":
-                        result_df["probability"] = np.median(probs, axis=0)
-                    elif method == "weighted" and fold_weights is not None:
-                        result_df["probability"] = np.average(probs, axis=0, weights=fold_weights)
-                    else:  # majority
-                        # For majority, do voting on predictions
-                        predictions = cast(np.ndarray[Any, Any], np.stack([df["y_pred"].values for df in fold_predictions])) # type: ignore
-                        result_df["y_pred"] = np.apply_along_axis(
-                            lambda x: np.bincount(x.astype(int)).argmax(), axis=0, arr=predictions
-                        )
-                        return result_df
-                    
-                    # Update predictions from aggregated probability
-                    result_df["y_pred"] = (result_df["probability"] > 0.5).astype(int)
-            
-            else:
-                # No probabilities available, use voting methods
-                if method == "majority":
-                    # Majority voting for predictions
-                    predictions = cast(np.ndarray[Any, Any], np.stack([df["y_pred"].values for df in fold_predictions])) # type: ignore
-                    result_df["y_pred"] = np.apply_along_axis(
-                        lambda x: np.bincount(x.astype(int)).argmax(), axis=0, arr=predictions
-                    )
-                else:
-                    # For mean/median, we need probabilities which we don't have
-                    # Fall back to majority voting
-                    logger.warning(
-                        f"Method '{method}' requires probabilities but none available. Using majority voting."
-                    )
-                    predictions = cast(np.ndarray[Any, Any], np.stack([df["y_pred"].values for df in fold_predictions])) # type: ignore
-                    result_df["y_pred"] = np.apply_along_axis(
-                        lambda x: np.bincount(x.astype(int)).argmax(), axis=0, arr=predictions
-                    )
+            # For classification: use majority voting
+            all_preds = np.stack([df["y_pred"].values for df in fold_predictions])  # type: ignore
 
-        return result_df
+            # Use mode for majority vote
 
-    def _get_fold_weights(self, is_survival: bool) -> np.ndarray[Any, Any]:
-        """
-        Calculate weights for each fold based on their validation performance.
-        
-        For survival tasks, uses C-index from each fold.
-        For classification tasks, uses F1 score from each fold.
-        
-        Args:
-            is_survival: Whether this is a survival task
-            
-        Returns:
-            Array of weights (normalized to sum to 1) for each fold
-        """
-        fold_indices = self.model_storage.list_folds()
-        performances: list[float] = []
-        
-        for fold_idx in fold_indices:
-            fold_metadata = self.model_storage.fold_metadata.get(fold_idx)
-            
-            if fold_metadata is None:
-                logger.warning(f"No metadata found for fold {fold_idx}, using default weight")
-                performances.append(0.5)  # Default to neutral performance
-                continue
-            
-            # Extract performance metric
-            if is_survival:
-                # Use C-index for survival
-                metric_value = fold_metadata.metrics.get("c_index", 0.5)
-            else:
-                # Use F1 score for classification (from macro avg)
-                if "macro avg" in fold_metadata.metrics:
-                    metric_value = fold_metadata.metrics["macro avg"].get("f1-score", 0.0)
-                else:
-                    # Fallback to weighted avg or any F1 metric
-                    metric_value = fold_metadata.metrics.get("f1", 0.0)
-            
-            performances.append(float(metric_value))
-        
-        # Convert to numpy array
-        performances_array = np.array(performances)
-        
-        # Handle edge case: all performances are zero
-        if np.sum(performances_array) == 0:
-            logger.warning("All fold performances are zero, using uniform weights")
-            return np.ones(len(fold_indices)) / len(fold_indices)
-        
-        # Normalize to sum to 1
-        weights = performances_array / np.sum(performances_array)
-        
-        return weights
+            y_pred = stats.mode(all_preds, axis=0, keepdims=False)[0]  # type: ignore
+
+            return pd.DataFrame(
+                {
+                    "y_true": fold_predictions[0]["y_true"].values,  # type: ignore
+                    "y_pred": y_pred,
+                }
+            )
 
     def _detect_task_type(self, predictions_df: pd.DataFrame) -> str:
-        """
-        Detect whether this is a classification or survival task.
-
-        Args:
-            predictions_df: Predictions DataFrame
-
-        Returns:
-            "classification" or "survival"
-        """
-        if "y_true_duration" in predictions_df.columns and "y_true_event" in predictions_df.columns:
+        """Detect whether task is classification or survival."""
+        if "logits" in predictions_df.columns:
             return "survival"
-        elif "y_true" in predictions_df.columns:
-            return "classification"
         else:
-            raise ValueError(
-                f"Cannot determine task type from columns: {predictions_df.columns.tolist()}"
-            )
+            return "classification"
 
     def _calculate_metrics(
         self, predictions_df: pd.DataFrame, task_type: str
-    ) -> tuple[dict[str, Any], dict[str, Any] | None]:
-        """
-        Calculate appropriate metrics based on task type.
-
-        Args:
-            predictions_df: Predictions DataFrame
-            task_type: "classification" or "survival"
-
-        Returns:
-            Tuple of (metrics dict, optional report dict)
-        """
+    ) -> dict[str, float]:
+        """Calculate metrics based on task type."""
         if task_type == "survival":
-            return self._calculate_survival_metrics(predictions_df), None
+            return self._calculate_survival_metrics(predictions_df)
         else:
             return self._calculate_classification_metrics(predictions_df)
 
-    def _calculate_survival_metrics(self, predictions_df: pd.DataFrame) -> dict[str, Any]:
-        """
-        Calculate survival analysis metrics using ConcordanceIndex metric.
-        """
-        durations = torch.tensor(predictions_df["y_true_duration"].values, dtype=torch.float32) # type: ignore
-        events = torch.tensor(predictions_df["y_true_event"].values, dtype=torch.float32) # type: ignore
-        
-        # Get logits if available, otherwise reconstruct from risk scores
-        if "logits" in predictions_df.columns:
-            # Stack all logits into a tensor [batch_size, num_bins]
-            logits_list = predictions_df["logits"].tolist()
-            logits = torch.stack([torch.from_numpy(np.array(logits)) for logits in logits_list]) # type: ignore
-        else:
-            raise ValueError("Logits are required for survival metric calculation")
+    # TODO: Review this
+    def _calculate_survival_metrics(
+        self, predictions_df: pd.DataFrame
+    ) -> dict[str, float]:
+        """Calculate survival metrics (C-Index)."""
+        durations = torch.tensor(predictions_df["duration"].values)  # type: ignore
+        events = torch.tensor(predictions_df["event"].values)  # type: ignore
+        risk_scores = torch.tensor(predictions_df["risk_score"].values)  # type: ignore
 
-        # Initialize and compute C-index using the ConcordanceIndex metric
+        # Reshape risk_scores for ConcordanceIndex if needed
+        if risk_scores.ndim == 1:
+            risk_scores = risk_scores.unsqueeze(-1)
+
         c_index_metric = ConcordanceIndex()
-        c_index_metric.update(logits, (durations, events))
-        c_index = float(c_index_metric.compute())
+        c_index_metric.update(risk_scores, (durations, events))
+        c_index = c_index_metric.compute()
 
-        metrics: dict[str, Any] = {
-            "c_index": c_index,
-            "n_samples": len(predictions_df),
+        return {
+            "c_index": float(c_index),
+            "n_samples": len(durations),
             "n_events": int(events.sum()),
-            "event_rate": float(events.mean()),
         }
-
-        logger.info(f"  C-index: {c_index:.4f}")
-        logger.info(f"  Events: {metrics['n_events']}/{metrics['n_samples']} ({metrics['event_rate']:.2%})")
-
-        return metrics
 
     def _calculate_classification_metrics(
         self, predictions_df: pd.DataFrame
-    ) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Calculate classification metrics including AUROC if probabilities available."""
-        y_true = cast(np.ndarray[Any, Any], predictions_df["y_true"].values) # type: ignore
-        y_pred = cast(np.ndarray[Any, Any], predictions_df["y_pred"].values) # type: ignore
+    ) -> dict[str, float]:
+        """Calculate classification metrics."""
+        y_true = cast(np.ndarray[Any, Any], predictions_df["y_true"].values)  # type: ignore
+        y_pred = cast(np.ndarray[Any, Any], predictions_df["y_pred"].values)  # type: ignore
 
-        # Basic metrics
-        accuracy = float(accuracy_score(y_true, y_pred))
+        # Calculate metrics
+        accuracy = accuracy_score(y_true, y_pred)
         precision, recall, f1, _ = cast(
-            tuple[float, float, float, np.ndarray[Any, Any]], 
-            precision_recall_fscore_support(
-                y_true, y_pred, average="weighted", zero_division=0
-            )
+            tuple[float, float, float, float],
+            precision_recall_fscore_support(  # type: ignore
+                y_true, y_pred, average="macro", zero_division=0
+            ),
         )
 
-        metrics: dict[str, Any] = {
-            "accuracy": accuracy,
-            "precision": float(precision),
+        metrics = {
+            "accuracy": float(accuracy),
+            "f1": float(f1),
             "recall": float(recall),
-            "f1_score": float(f1),
-            "n_samples": len(predictions_df),
+            "precision": float(precision),
         }
 
-        # ROC AUC if probabilities available
-        prob_cols = [col for col in predictions_df.columns if col.startswith("prob_")]
-        if prob_cols and len(prob_cols) > 1:
-            # Multi-class AUROC
+        # Try to calculate AUC if probabilities are available
+        prob_columns = [
+            col for col in predictions_df.columns if col.startswith("prob_class_")
+        ]
+        if prob_columns:
             try:
-                probs = predictions_df[prob_cols].values
-                auc = float(roc_auc_score(y_true, probs, multi_class="ovr", average="weighted"))
-                metrics["roc_auc_weighted"] = auc
-                
-                # Also compute macro average
-                auc_macro = float(roc_auc_score(y_true, probs, multi_class="ovr", average="macro"))
-                metrics["roc_auc_macro"] = auc_macro
-                
-                logger.info(f"  ROC AUC (weighted): {auc:.4f}")
-                logger.info(f"  ROC AUC (macro): {auc_macro:.4f}")
+                n_classes = len(prob_columns)
+                if n_classes == 2:
+                    y_score = cast(list[Any], predictions_df["prob_class_1"].values)  # type: ignore
+                    auc = roc_auc_score(y_true, y_score)
+                    metrics["auc"] = float(auc)
             except Exception as e:
-                logger.warning(f"Could not calculate ROC AUC: {e}")
-        elif "probability" in predictions_df.columns:
-            # Binary AUROC
-            try:
-                probs = cast(np.ndarray[Any, Any], predictions_df["probability"].values) # type: ignore
-                auc = float(roc_auc_score(y_true, probs))
-                metrics["roc_auc"] = auc
-                logger.info(f"  ROC AUC: {auc:.4f}")
-            except Exception as e:
-                logger.warning(f"Could not calculate ROC AUC: {e}")
+                logger.warning(f"Failed to calculate AUC: {e}")
 
-        # Classification report
-        report_dict = cast(
-            dict[str, Any], 
-            classification_report(y_true, y_pred, output_dict=True, zero_division=0)
+        return metrics
+
+    def create_plots(self):
+        """Generate plots for all metrics."""
+        plot_generator = PlotGenerator(self.config.output_dir)
+
+        # Get metrics from config
+        metrics_str = [str(m) for m in self.config.metrics]
+
+        # Rename columns to match PlotGenerator expectations
+        df_renamed = self.df.rename(columns={"task": "task"})
+
+        plot_generator.create_plots(
+            df=df_renamed,
+            metrics=metrics_str,
+            group_by_column="experiment_id",
         )
 
-        logger.info(f"  Accuracy: {accuracy:.4f}")
-        logger.info(f"  F1 Score: {f1:.4f}")
+        logger.info("Plots generated successfully")
 
-        return metrics, report_dict
+    def create_tables(self):
+        """Generate LaTeX tables."""
+        # Common configuration for all tables
+        base_config: dict[str, Any] = {
+            "baseline_features": ["RESNET", "GIGAPATH"],
+            "task_mapping": {
+                "ADENOvsSQUA": "Adeno. vs Squa.",
+                "PDL1": "PDL1",
+                "DCR": "DCR",
+                "OS6": "OS6",
+                "OS24": "OS24",
+                "ORR": "ORR",
+                "CBR": "CBR",
+            },
+            "feature_mapping": {
+                "RESNET": "ResNet50",
+                "GIGAPATH": "GigaPath",
+                "MORPHO": "Morphological",
+                "PYRAD": "Radiomics",
+                "TOPO": "Topological",
+                "ALL": "All",
+            },
+            "model_mapping": {
+                "ABMIL": "ABMIL",
+                "CLAM": "CLAM",
+                "HEAD4TYPE": "Head4Type",
+            },
+            "metric_mapping": {
+                "f1": "F1",
+                "recall": "Bal. Acc.",
+                "c_index": "C-Index",
+            },
+            "support_mapping": {
+                "DCR": 343,
+                "ORR": 343,
+                "CBR": 343,
+                "OS6": 339,
+                "OS24": 295,
+                "PDL1": 306,
+                "ADENOvsSQUA": 280,
+            },
+        }
 
-    def _save_predictions(
-        self,
-        predictions_df: pd.DataFrame,
-        metrics: dict[str, Any],
-        mode: PredictionMode,
-        task_type: str,
-    ) -> None:
-        """
-        Save predictions and metrics to disk.
+        # Define table configurations
+        configs = [
+            TableConfig(
+                output_file=str(
+                    self.config.output_dir / "external_classification_stratified.tex"
+                ),
+                table_type="classification",
+                include_stratified=True,
+                classification_metrics=["f1", "recall"],
+                caption="\\textbf{External validation - Classification performance (cell-stratified).}",
+                label="tab:external_classification_stratified",
+                **base_config,
+            ),
+            TableConfig(
+                output_file=str(
+                    self.config.output_dir
+                    / "external_classification_non_stratified.tex"
+                ),
+                table_type="classification",
+                include_stratified=False,
+                classification_metrics=["f1", "recall"],
+                caption="\\textbf{External validation - Classification performance.}",
+                label="tab:external_classification",
+                **base_config,
+            ),
+            TableConfig(
+                output_file=str(
+                    self.config.output_dir / "external_survival_stratified.tex"
+                ),
+                table_type="survival",
+                include_stratified=True,
+                survival_metrics=["c_index"],
+                caption="\\textbf{External validation - Survival analysis performance (cell-stratified).}",
+                label="tab:external_survival_stratified",
+                **base_config,
+            ),
+            TableConfig(
+                output_file=str(
+                    self.config.output_dir / "external_survival_non_stratified.tex"
+                ),
+                table_type="survival",
+                include_stratified=False,
+                survival_metrics=["c_index"],
+                caption="\\textbf{External validation - Survival analysis performance.}",
+                label="tab:external_survival",
+                **base_config,
+            ),
+        ]
 
-        Args:
-            predictions_df: Predictions DataFrame
-            metrics: Metrics dictionary
-            mode: Prediction mode
-            task_type: Task type
-        """
-        output_dir = self.model_storage.output_dir / "external_validation"
-        output_dir.mkdir(parents=True, exist_ok=True)
+        # Rename columns to match TableGenerator expectations
+        df_renamed = self.df.rename(
+            columns={
+                "experiment_id": TableGenerator.COLUMN_EXPERIMENT_ID,
+                "task": TableGenerator.COLUMN_TASK,
+                "features": TableGenerator.COLUMN_FEATURES,
+                "model": TableGenerator.COLUMN_MODEL,
+                "reg": TableGenerator.COLUMN_REG,
+                "stra": TableGenerator.COLUMN_STRA,
+            }
+        )
 
-        # Remove logits column before saving (too large and not human-readable)
-        df_to_save = predictions_df.copy()
-        if "logits" in df_to_save.columns:
-            df_to_save = df_to_save.drop(columns=["logits"])
+        table_generator = TableGenerator(df_renamed)
+        table_generator.create_tables(configs)
 
-        # Save predictions
-        pred_path = output_dir / f"predictions_{mode}.csv"
-        df_to_save.to_csv(pred_path, index=False)
-        logger.info(f"Predictions saved to: {pred_path}")
-
-        # Save metrics
-        metrics_path = output_dir / f"metrics_{mode}.json"
-        import json
-
-        with open(metrics_path, "w") as f:
-            json.dump(
-                {
-                    "mode": str(mode),
-                    "task_type": task_type,
-                    "experiment": self.model_storage.experiment_name,
-                    "metrics": metrics,
-                },
-                f,
-                indent=2,
-            )
-        logger.info(f"Metrics saved to: {metrics_path}")
+        logger.info("Tables generated successfully")
