@@ -110,26 +110,26 @@ class EvaluationReporter:
         base_config: dict[str, Any] = {
             "baseline_features": ["RESNET", "GIGAPATH"],
             "task_mapping": {
+                "ADENOvsSQUA": "Adeno. vs Squa.",
+                "PDL1": "PDL1",
                 "DCR": "DCR",
-                "ORR": "ORR",
-                "CBR": "CBR",
                 "OS6": "OS6",
                 "OS24": "OS24",
-                "PDL1": "PDL1",
-                "ADENOvsSQUA": "Adeno. vs Squa.",
+                "ORR": "ORR",
+                "CBR": "CBR",
             },
             "feature_mapping": {
                 "RESNET": "ResNet50",
                 "GIGAPATH": "GigaPath",
-                "PYRAD": "Radiomics",
                 "MORPHO": "Morphological",
+                "PYRAD": "Radiomics",
                 "TOPO": "Topological",
                 "ALL": "All",
             },
             "model_mapping": {
                 "ABMIL": "ABMIL",
-                "HEAD4TYPE": "Head4Type",
                 "CLAM": "CLAM",
+                "HEAD4TYPE": "Head4Type",
             },
             "metric_mapping": {
                 "f1": "F1",
@@ -537,8 +537,9 @@ class EvaluationReporter:
         )
         metrics = [str(m) for m in metrics_enums]
 
-        # Get unique tasks (filtered)
-        tasks = sorted(df[COLUMN_TASK].unique().tolist())  # type: ignore
+        # Get unique tasks (filtered) - preserve order from mapping
+        available_tasks = set(df[COLUMN_TASK].unique().tolist())  # type: ignore
+        tasks = [t for t in config.task_mapping.keys() if t in available_tasks]
 
         # Find best values for bolding
         best_values = self._find_best_values_per_task(self.df, tasks, metrics)
@@ -573,9 +574,13 @@ class EvaluationReporter:
         Returns:
             LaTeX table code
         """
-        # Get unique features and models
-        features_list = sorted(df[COLUMN_FEATURES].unique().tolist())  # type: ignore
-        models_list = sorted(df[COLUMN_MODEL].unique().tolist())  # type: ignore
+        # Get unique features and models - preserve order from mappings
+        available_features = set(df[COLUMN_FEATURES].unique().tolist())  # type: ignore
+        features_list = [
+            f for f in config.feature_mapping.keys() if f in available_features
+        ]
+        available_models = set(df[COLUMN_MODEL].unique().tolist())  # type: ignore
+        models_list = [m for m in config.model_mapping.keys() if m in available_models]
 
         # Build header
         num_metrics = len(metrics)
@@ -691,10 +696,22 @@ class EvaluationReporter:
                     + "}{c}{\\textbf{Patch Embeddings (Baseline)}} \\\\"
                 )
                 latex_lines.append("    \\midrule")
-                baseline_features = sorted(
-                    baseline_df[COLUMN_FEATURES].unique().tolist()  # type: ignore
-                )
-                baseline_models = sorted(baseline_df[COLUMN_MODEL].unique().tolist())  # type: ignore
+                available_baseline_features = set(
+                    baseline_df[COLUMN_FEATURES].unique().tolist()
+                )  # type: ignore
+                baseline_features = [
+                    f
+                    for f in config.feature_mapping.keys()
+                    if f in available_baseline_features
+                ]
+                available_baseline_models = set(
+                    baseline_df[COLUMN_MODEL].unique().tolist()
+                )  # type: ignore
+                baseline_models = [
+                    m
+                    for m in config.model_mapping.keys()
+                    if m in available_baseline_models
+                ]
                 latex_lines.extend(
                     self._generate_table_rows(
                         baseline_df,
@@ -709,8 +726,14 @@ class EvaluationReporter:
                 latex_lines.append("    \\midrule")
             # Remove baseline features from main sections
             df = df[~df[COLUMN_FEATURES].isin(config.baseline_features)]  # type: ignore
-            features_list = sorted(df[COLUMN_FEATURES].unique().tolist())  # type: ignore
-            models_list = sorted(df[COLUMN_MODEL].unique().tolist())  # type: ignore
+            available_features = set(df[COLUMN_FEATURES].unique().tolist())  # type: ignore
+            features_list = [
+                f for f in config.feature_mapping.keys() if f in available_features
+            ]
+            available_models = set(df[COLUMN_MODEL].unique().tolist())  # type: ignore
+            models_list = [
+                m for m in config.model_mapping.keys() if m in available_models
+            ]
 
         # Main table sections
         # Separate by regularization first
