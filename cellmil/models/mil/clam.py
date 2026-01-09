@@ -1115,7 +1115,7 @@ class LitCLAM(Pl.LightningModule):
                 **model_config,
                 "optimizer_class": optimizer.__class__.__name__,
                 "optimizer_lr": optimizer.param_groups[0]["lr"],
-                "loss_slide": loss_slide.__class__.__name__,
+                "loss_slide": loss_slide,
                 "weight_loss_slide": weight_loss_slide,
                 "lr_scheduler": lr_scheduler.__class__.__name__
                 if lr_scheduler
@@ -1186,7 +1186,22 @@ class LitCLAM(Pl.LightningModule):
         )
 
         # Reconstruct loss function
-        loss_slide = getattr(nn, hparams.get("loss_slide", "CrossEntropyLoss"))()
+        loss_slide_param = hparams.get("loss_slide", nn.CrossEntropyLoss())
+        
+        # Handle both string names (old checkpoints) and loss objects (new checkpoints)
+        if isinstance(loss_slide_param, str):
+            # Old checkpoint format - reconstruct from name
+            from cellmil.utils.train.losses import FocalLoss
+            if loss_slide_param == "FocalLoss":
+                loss_slide = FocalLoss()
+            elif loss_slide_param == "CrossEntropyLoss":
+                loss_slide = nn.CrossEntropyLoss()
+            else:
+                # Default fallback
+                loss_slide = nn.CrossEntropyLoss()
+        else:
+            # New checkpoint format - already a loss object
+            loss_slide = loss_slide_param
 
         # Note: lr_scheduler is not reconstructed from checkpoint as it's typically
         # created fresh when loading a model for further training or evaluation
