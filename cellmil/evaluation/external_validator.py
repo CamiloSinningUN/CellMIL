@@ -5,13 +5,9 @@ import traceback
 import pandas as pd
 import numpy as np
 import torch
+import torchmetrics
 from tqdm import tqdm
 from lightning import Trainer
-from sklearn.metrics import (
-    accuracy_score,  # type: ignore
-    precision_recall_fscore_support,  # type: ignore
-    roc_auc_score,  # type: ignore
-)
 from torch.utils.data import DataLoader as DataLoaderTorch
 from torch_geometric.loader import DataLoader as DataLoaderPyG  # type: ignore
 from scipy import stats  # type: ignore
@@ -61,8 +57,9 @@ class ExternalValidator:
 
         # TODO: Make configurable
         self.n_bins = 4
-        self.use_parallelism = False  # Set to False when Dataset is not cached and to Debug
-
+        self.use_parallelism = True  # Set to False when Dataset is not cached and to Debug
+        self.max_workers = 4
+        self.use_gpu = False
         # TODO: ------
 
         # Ensure output directory exists
@@ -149,7 +146,7 @@ class ExternalValidator:
 
         if self.use_parallelism:
             # Use ThreadPoolExecutor for parallel processing
-            with ThreadPoolExecutor(max_workers=1) as executor:
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
                 future_to_dir = {
                     executor.submit(process_single_model, model_dir): model_dir
                     for model_dir in model_dirs
@@ -374,8 +371,8 @@ class ExternalValidator:
         """Generate predictions using final model."""
         checkpoint_path = model_storage.load_final_checkpoint()
         
-        # Set map_location based on CUDA availability
-        map_location = None if torch.cuda.is_available() else torch.device('cpu')
+        # Set map_location based on CUDA availability and use_gpu flag
+        map_location = None if torch.cuda.is_available() and self.use_gpu else torch.device('cpu')
         
         model = lit_model_creator(input_dim).load_from_checkpoint(
             checkpoint_path, map_location=map_location
@@ -383,7 +380,7 @@ class ExternalValidator:
         model.eval()
 
         trainer = Trainer(
-            accelerator="auto",
+            accelerator="auto" if self.use_gpu else "cpu",
             devices=1,
             logger=False,
             enable_progress_bar=False,
@@ -404,7 +401,7 @@ class ExternalValidator:
         fold_indices = model_storage.list_folds()
 
         trainer = Trainer(
-            accelerator="auto",
+            accelerator="auto" if self.use_gpu else "cpu",
             devices=1,
             logger=False,
             enable_progress_bar=False,
@@ -413,8 +410,8 @@ class ExternalValidator:
 
         all_fold_predictions: list[pd.DataFrame] = []
         
-        # Set map_location based on CUDA availability
-        map_location = None if torch.cuda.is_available() else torch.device('cpu')
+        # Set map_location based on CUDA availability and use_gpu flag
+        map_location = None if torch.cuda.is_available() and self.use_gpu else torch.device('cpu')
 
         for fold_idx in fold_indices:
             checkpoint_path = model_storage.load_fold_checkpoint(fold_idx)
@@ -435,21 +432,97 @@ class ExternalValidator:
         dataloader: Any,
     ) -> pd.DataFrame:
         """Extract predictions using Lightning Trainer."""
-        y_pred = cast(list[Any], trainer.predict(model, dataloader))
-
-        # Extract true labels based on dataloader type
-        if isinstance(dataloader, DataLoaderPyG):
-            y_true = [batch.y for batch in dataloader]
-        else:
-            y_true = [batch[-1] for batch in dataloader]
-
         # Check if survival model
         is_surv = is_survival_model(model)
-
+        
         if is_surv:
+            # For survival models, use trainer.predict which returns logits
+            y_pred = cast(list[Any], trainer.predict(model, dataloader))
+            
+            # Extract true labels based on dataloader type
+            if isinstance(dataloader, DataLoaderPyG):
+                y_true = [batch.y for batch in dataloader]
+            else:
+                y_true = [batch[-1] for batch in dataloader]
+            
             return self._process_survival_predictions(y_pred, y_true)
         else:
-            return self._process_classification_predictions(y_pred, y_true)
+            # For classification, we need to manually get logits/probs
+            return self._get_classification_predictions(model, dataloader)
+
+    def _get_classification_predictions(
+        self, model: Any, dataloader: Any
+    ) -> pd.DataFrame:
+        """Get classification predictions with logits by manually iterating."""
+        model.eval()
+        
+        all_y_true = []
+        all_logits = []
+        
+        with torch.no_grad():
+            for batch in dataloader:
+                if isinstance(dataloader, DataLoaderPyG):
+                    # For graph dataloaders
+                    x = batch
+                    y_true = batch.y
+                    # Ensure batch size is 1 for MIL
+                    output = model(x.x.squeeze(0))
+                else:
+                    # For standard dataloaders
+                    # Handle different batch formats (some models include cell types, etc.)
+                    if len(batch) == 2:
+                        x, y_true = batch
+                    elif len(batch) == 3:
+                        # Likely (x, cell_types, y_true) for HEAD4TYPE
+                        x, cell_types, y_true = batch
+                    else:
+                        raise ValueError(f"Unexpected batch format with {len(batch)} elements")
+                    
+                    # Ensure MIL batch size is 1
+                    assert x.size(0) == 1, "Batch size must be 1 for MIL"
+                    x = x.squeeze(0)  # [n_instances, feat_dim]
+                    
+                    # Pass appropriate inputs based on batch content
+                    if len(batch) == 3:
+                        # For HEAD4TYPE, pass cell types as well
+                        cell_types = cell_types.squeeze(0)  # [n_instances]
+                        output = model(x, cell_types)
+                    else:
+                        output = model(x)
+                
+                # Handle models that return (logits, output_dict) or just logits
+                if isinstance(output, tuple):
+                    logits = output[0]
+                else:
+                    logits = output
+                
+                all_y_true.append(y_true.cpu())
+                all_logits.append(logits.cpu())
+        
+        # Flatten all predictions
+        y_true_flat = torch.cat([y.flatten() for y in all_y_true]).numpy()
+        logits_flat = torch.cat(all_logits, dim=0)  # [N, n_classes]
+        
+        # Get class predictions from logits
+        y_pred_flat = logits_flat.argmax(dim=1).numpy()
+        
+        # Compute probabilities for storing in DataFrame (useful for analysis/ensemble)
+        probs_flat = torch.softmax(logits_flat, dim=1).numpy()
+        
+        # Build DataFrame with probabilities for each class
+        result_dict = {
+            "y_true": y_true_flat,
+            "y_pred": y_pred_flat,
+        }
+        
+        # Store both logits and probabilities
+        # Logits for metric calculation (same as training)
+        # Probabilities for human readability and ensemble aggregation
+        for i in range(logits_flat.shape[1]):
+            result_dict[f"logit_class_{i}"] = logits_flat[:, i].numpy()
+            result_dict[f"prob_class_{i}"] = probs_flat[:, i]
+        
+        return pd.DataFrame(result_dict)
 
     def _process_survival_predictions(
         self, y_pred: list[Any], y_true: list[Any]
@@ -543,35 +616,6 @@ class ExternalValidator:
             }
         )
 
-    def _process_classification_predictions(
-        self, y_pred: list[Any], y_true: list[Any]
-    ) -> pd.DataFrame:
-        """Process classification model predictions."""
-        # Extract predictions
-        if isinstance(y_pred[0], torch.Tensor):
-            y_pred_flat = [pred.cpu().numpy().flatten()[0] for pred in y_pred]  # type: ignore
-        else:
-            y_pred_flat = [  # type: ignore
-                pred.flatten()[0] if hasattr(pred, "flatten") else pred  # type: ignore
-                for pred in y_pred  # type: ignore
-            ]
-
-        # Extract true labels
-        if y_true and isinstance(y_true[0], torch.Tensor):
-            y_true_flat = [true.cpu().numpy().flatten()[0] for true in y_true]
-        else:
-            y_true_flat = [
-                true.flatten()[0] if hasattr(true, "flatten") else true
-                for true in y_true
-            ]
-
-        return pd.DataFrame(
-            {
-                "y_true": np.array(y_true_flat),
-                "y_pred": np.array(y_pred_flat),  # type: ignore
-            }
-        )
-
     def _aggregate_fold_predictions(
         self,
         fold_predictions: list[pd.DataFrame],
@@ -619,19 +663,71 @@ class ExternalValidator:
                 }
             )
         else:
-            # For classification: use majority voting
-            all_preds = np.stack([df["y_pred"].values for df in fold_predictions])  # type: ignore
+            # For classification: check method first, then use available data
+            # If majority voting is requested, always use it regardless of available data
+            if method == AggregationMethod.majority:
+                # Use majority voting
+                all_preds = np.stack([df["y_pred"].values for df in fold_predictions])  # type: ignore
+                y_pred = stats.mode(all_preds, axis=0, keepdims=False)[0]  # type: ignore
 
-            # Use mode for majority vote
-
-            y_pred = stats.mode(all_preds, axis=0, keepdims=False)[0]  # type: ignore
-
-            return pd.DataFrame(
-                {
+                return pd.DataFrame(
+                    {
+                        "y_true": fold_predictions[0]["y_true"].values,  # type: ignore
+                        "y_pred": y_pred,
+                    }
+                )
+            
+            # For other methods, aggregate probabilities (better than logits due to scale differences)
+            prob_columns = [
+                col for col in fold_predictions[0].columns if col.startswith("prob_class_")
+            ]
+            
+            if prob_columns:
+                # Aggregate probabilities (preferred - handles different model scales)
+                n_classes = len(prob_columns)
+                all_probs = []
+                
+                for df in fold_predictions:
+                    probs = np.stack([df[col].values for col in prob_columns], axis=1)  # [n_samples, n_classes]
+                    all_probs.append(probs)
+                
+                stacked_probs = np.stack(all_probs)  # [n_folds, n_samples, n_classes]
+                
+                if method == AggregationMethod.mean or method == AggregationMethod.weighted_mean:
+                    aggregated_probs = np.mean(stacked_probs, axis=0)
+                elif method == AggregationMethod.median:
+                    aggregated_probs = np.median(stacked_probs, axis=0)
+                else:
+                    raise ValueError(f"Unsupported aggregation method: {method}")
+                
+                # Get predictions from aggregated probabilities
+                y_pred = np.argmax(aggregated_probs, axis=1)
+                
+                # Compute logits from aggregated probabilities (for consistency)
+                aggregated_logits = np.log(aggregated_probs + 1e-12)
+                
+                # Build result with both probabilities and logits
+                result_dict = {
                     "y_true": fold_predictions[0]["y_true"].values,  # type: ignore
                     "y_pred": y_pred,
                 }
-            )
+                
+                for i in range(n_classes):
+                    result_dict[f"prob_class_{i}"] = aggregated_probs[:, i]
+                    result_dict[f"logit_class_{i}"] = aggregated_logits[:, i]
+                
+                return pd.DataFrame(result_dict)
+            else:
+                # Fallback to majority voting if no logits/probabilities
+                all_preds = np.stack([df["y_pred"].values for df in fold_predictions])  # type: ignore
+                y_pred = stats.mode(all_preds, axis=0, keepdims=False)[0]  # type: ignore
+
+                return pd.DataFrame(
+                    {
+                        "y_true": fold_predictions[0]["y_true"].values,  # type: ignore
+                        "y_pred": y_pred,
+                    }
+                )
 
     def _detect_task_type(self, predictions_df: pd.DataFrame) -> str:
         """Detect whether task is classification or survival."""
@@ -647,7 +743,9 @@ class ExternalValidator:
         if task_type == "survival":
             return self._calculate_survival_metrics(predictions_df)
         else:
-            return self._calculate_classification_metrics(predictions_df)
+            # Infer n_classes from the data
+            n_classes = self._infer_n_classes(predictions_df)
+            return self._calculate_classification_metrics(predictions_df, n_classes)
 
     # TODO: Review this
     def _calculate_survival_metrics(
@@ -672,42 +770,90 @@ class ExternalValidator:
             "n_events": int(events.sum()),
         }
 
-    def _calculate_classification_metrics(
-        self, predictions_df: pd.DataFrame
-    ) -> dict[str, float]:
-        """Calculate classification metrics."""
-        y_true = cast(np.ndarray[Any, Any], predictions_df["y_true"].values)  # type: ignore
-        y_pred = cast(np.ndarray[Any, Any], predictions_df["y_pred"].values)  # type: ignore
-
-        # Calculate metrics
-        accuracy = accuracy_score(y_true, y_pred)
-        precision, recall, f1, _ = cast(
-            tuple[float, float, float, float],
-            precision_recall_fscore_support(  # type: ignore
-                y_true, y_pred, average="macro", zero_division=0
-            ),
-        )
-
-        metrics = {
-            "accuracy": float(accuracy),
-            "f1": float(f1),
-            "recall": float(recall),
-            "precision": float(precision),
-        }
-
-        # Try to calculate AUC if probabilities are available
+    def _infer_n_classes(self, predictions_df: pd.DataFrame) -> int:
+        """Infer number of classes from predictions DataFrame."""
+        # Check if logit columns exist (preferred)
+        logit_columns = [
+            col for col in predictions_df.columns if col.startswith("logit_class_")
+        ]
+        if logit_columns:
+            return len(logit_columns)
+        
+        # Check if probability columns exist
         prob_columns = [
             col for col in predictions_df.columns if col.startswith("prob_class_")
         ]
         if prob_columns:
-            try:
-                n_classes = len(prob_columns)
-                if n_classes == 2:
-                    y_score = cast(list[Any], predictions_df["prob_class_1"].values)  # type: ignore
-                    auc = roc_auc_score(y_true, y_score)
-                    metrics["auc"] = float(auc)
-            except Exception as e:
-                logger.warning(f"Failed to calculate AUC: {e}")
+            return len(prob_columns)
+        
+        # Otherwise infer from y_true and y_pred
+        y_true = predictions_df["y_true"].values
+        y_pred = predictions_df["y_pred"].values
+        return int(max(y_true.max(), y_pred.max()) + 1)
+
+    def _calculate_classification_metrics(
+        self, predictions_df: pd.DataFrame, n_classes: int
+    ) -> dict[str, float]:
+        """Calculate classification metrics using torchmetrics (same as training)."""
+        y_true = torch.tensor(predictions_df["y_true"].values, dtype=torch.long)
+        
+        # Get logits (same format as passed to metrics during training)
+        logit_columns = [
+            col for col in predictions_df.columns if col.startswith("logit_class_")
+        ]
+        
+        if logit_columns and len(logit_columns) == n_classes:
+            # Stack logits into tensor
+            logit_tensors = []
+            for i in range(n_classes):
+                col_name = f"logit_class_{i}"
+                logit_tensors.append(torch.tensor(predictions_df[col_name].values, dtype=torch.float32))
+            
+            logits = torch.stack(logit_tensors, dim=1)  # [N, n_classes]
+        else:
+            # Fallback: if no logits stored, use predictions
+            y_pred = torch.tensor(predictions_df["y_pred"].values, dtype=torch.long)
+            # Create one-hot encoded "logits" from predictions
+            logits = torch.nn.functional.one_hot(y_pred, num_classes=n_classes).float() * 10.0
+
+        # Initialize metrics using torchmetrics (same as in LitGeneral)
+        metrics_collection = torchmetrics.MetricCollection({
+            "accuracy": torchmetrics.Accuracy(
+                task="multiclass", num_classes=n_classes, average="macro"
+            ),
+            "f1": torchmetrics.F1Score(
+                task="multiclass", num_classes=n_classes, average="macro"
+            ),
+            "precision": torchmetrics.Precision(
+                task="multiclass", num_classes=n_classes, average="macro"
+            ),
+            "recall": torchmetrics.Recall(
+                task="multiclass", num_classes=n_classes, average="macro"
+            ),
+        })
+
+        # Pass logits to metrics (EXACTLY as training: self.train_metrics(logits, y))
+        metrics_collection.update(logits, y_true)
+        computed_metrics = metrics_collection.compute()
+
+        metrics = {
+            "accuracy": float(computed_metrics["accuracy"].item()),
+            "f1": float(computed_metrics["f1"].item()),
+            "recall": float(computed_metrics["recall"].item()),
+            "precision": float(computed_metrics["precision"].item()),
+        }
+
+        # Calculate AUROC using logits (torchmetrics will apply softmax internally)
+        try:
+            auroc_metric = torchmetrics.AUROC(
+                task="multiclass", num_classes=n_classes, average="macro"
+            )
+            # Pass logits, torchmetrics will handle softmax internally (same as training)
+            auroc_metric.update(logits, y_true)
+            auc = auroc_metric.compute()
+            metrics["auroc"] = float(auc.item())
+        except Exception as e:
+            logger.warning(f"Failed to calculate AUROC: {e}")
 
         return metrics
 

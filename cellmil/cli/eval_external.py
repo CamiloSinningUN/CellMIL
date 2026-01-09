@@ -35,7 +35,7 @@ def eval_external(args: argparse.Namespace) -> None:
         validator = ExternalValidator(config)
         validator.validate()
 
-        logger.info(f"External validation completed successfully using model at {args.model_path}.")
+        logger.info(f"External validation completed successfully using models at {args.models_dir}.")
     except Exception as e:
         # Get traceback information
         tb = traceback.format_exc()
