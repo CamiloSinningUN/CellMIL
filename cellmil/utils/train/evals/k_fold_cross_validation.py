@@ -354,30 +354,26 @@ class KFoldCrossValidation:
                 train_dataset,  # type: ignore
                 batch_size=1,
                 shuffle=True,
-                num_workers=8,
-                persist_workers=True,
+                num_workers=8
             )
             val_loader = DataLoaderPyG(
                 val_dataset,  # type: ignore
                 batch_size=1,
                 shuffle=False,
-                num_workers=8,
-                persist_workers=True,
+                num_workers=8
             )
         else:
             train_loader = DataLoaderTorch(
                 train_dataset,  # type: ignore
                 batch_size=1,
                 shuffle=True,
-                num_workers=8,
-                persist_workers=True,
+                num_workers=8
             )
             val_loader = DataLoaderTorch(
                 val_dataset,  # type: ignore
                 batch_size=1,
                 shuffle=False,
-                num_workers=8,
-                persist_workers=True,
+                num_workers=8
             )
 
         return train_loader, val_loader, train_dataset, val_dataset
@@ -755,7 +751,6 @@ class KFoldCrossValidation:
                 batch_size=1,
                 shuffle=True,
                 num_workers=8,
-                persist_workers=True,
             )
             sample_data = train_dataset[0]
             model = lit_model_creator(sample_data.x.shape[1], use_lr_scheduler=False)  # type: ignore
@@ -765,7 +760,6 @@ class KFoldCrossValidation:
                 batch_size=1,
                 shuffle=True,
                 num_workers=8,
-                persist_workers=True,
             )
             sample_data = train_dataset[0]
             model = lit_model_creator(sample_data[0].shape[1], use_lr_scheduler=False)
