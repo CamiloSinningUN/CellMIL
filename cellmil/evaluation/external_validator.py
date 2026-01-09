@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Any, cast
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import traceback
 import pandas as pd
 import numpy as np
 import torch
@@ -60,6 +61,7 @@ class ExternalValidator:
 
         # TODO: Make configurable
         self.n_bins = 4
+        self.use_parallelism = False  # Set to False when Dataset is not cached and to Debug
 
         # TODO: ------
 
@@ -137,21 +139,33 @@ class ExternalValidator:
             try:
                 return self._evaluate_model(model_dir)
             except Exception as e:
-                logger.error(f"Failed to process model {model_dir.name}: {e}")
+                logger.error(
+                    f"Failed to process model {model_dir.name}: {e}\n"
+                    f"Traceback:\n{traceback.format_exc()}"
+                )
                 return None
 
         results: list[dict[str, Any]] = []
 
-        # Use ThreadPoolExecutor for parallel processing
-        with ThreadPoolExecutor(max_workers=8) as executor:
-            future_to_dir = {
-                executor.submit(process_single_model, model_dir): model_dir
-                for model_dir in model_dirs
-            }
+        if self.use_parallelism:
+            # Use ThreadPoolExecutor for parallel processing
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future_to_dir = {
+                    executor.submit(process_single_model, model_dir): model_dir
+                    for model_dir in model_dirs
+                }
 
+                with tqdm(total=len(model_dirs), desc="Evaluating models") as pbar:
+                    for future in as_completed(future_to_dir):
+                        result = future.result()
+                        if result is not None:
+                            results.append(result)
+                        pbar.update(1)
+        else:
+            # Sequential processing
             with tqdm(total=len(model_dirs), desc="Evaluating models") as pbar:
-                for future in as_completed(future_to_dir):
-                    result = future.result()
+                for model_dir in model_dirs:
+                    result = process_single_model(model_dir)
                     if result is not None:
                         results.append(result)
                     pbar.update(1)
@@ -182,26 +196,40 @@ class ExternalValidator:
         # Parse experiment name: TASK+FEATURES+MODEL+REG+STRA
         components = self._parse_experiment_name(experiment_name)
 
-        # Create dataset for this model configuration
+        # Load and preprocess metadata for this task (needed for lit_model_creator)
+        df = self._load_metadata_df()
+        df = preprocess_df(df, components["task"])
+
+        # Create dataset for this model configuration with transforms
         dataset = self._create_dataset(
             task=components["task"],
             features=components["features"],
             model=components["model"],
+            model_storage=model_storage,
         )
+
+        # Get input dimension from transformed sample
+        sample_data = dataset[0]
+        if isinstance(dataset, (CellGNNMILDataset, PatchGNNMILDataset)):
+            input_dim = sample_data.x.shape[1]  # type: ignore
+        else:
+            input_dim = sample_data[0].shape[1]
+
+        logger.info(f"Dataset created with input_dim: {input_dim}")
 
         # Create dataloader based on dataset type
         if isinstance(dataset, (CellGNNMILDataset, PatchGNNMILDataset)):
-            dataloader = DataLoaderPyG(dataset, batch_size=1, shuffle=False)
+            dataloader = DataLoaderPyG(dataset, batch_size=1, shuffle=False, num_workers=8)
         else:
-            dataloader = DataLoaderTorch(dataset, batch_size=1, shuffle=False)
+            dataloader = DataLoaderTorch(dataset, batch_size=1, shuffle=False, num_workers=8)
 
-        # Get lit_model_creator
+        # Get lit_model_creator with preprocessed df (needed for loss calculation)
         lit_model_creator = get_lit_model_creator(
             model=components["model"],
             task=components["task"],
             n_bins=self.n_bins,
             feature=components["features"],
-            df=self._load_metadata_df(),
+            df=df,
             regularization=(components["reg"] == "REG"),
         )
 
@@ -210,6 +238,7 @@ class ExternalValidator:
             model_storage=model_storage,
             dataloader=dataloader,
             lit_model_creator=lit_model_creator,
+            input_dim=input_dim,
         )
 
         # Calculate metrics
@@ -254,15 +283,16 @@ class ExternalValidator:
         }
 
     def _create_dataset(
-        self, task: str, features: str, model: str
+        self, task: str, features: str, model: str, model_storage: ModelStorage
     ) -> CellMILDataset | PatchMILDataset:
         """
-        Create external validation dataset.
+        Create external validation dataset with pre-fitted transforms.
 
         Args:
             task: Task name
             features: Feature type
             model: Model name
+            model_storage: Model storage to load transforms from
 
         Returns:
             MILDataset for external validation
@@ -275,7 +305,16 @@ class ExternalValidator:
         # Get extractors
         extractors = get_extractors_from_name(features)
 
-        # Create dataset
+        # Load fitted transforms from model storage
+        # Use final model transforms if available, otherwise use fold_0
+        if model_storage.has_final_model():
+            transforms, label_transforms = model_storage.load_final_transforms()
+            logger.info("Loaded transforms from final model")
+        else:
+            transforms, label_transforms = model_storage.load_fold_transforms(0)
+            logger.info("Loaded transforms from fold 0")
+
+        # Create dataset with fitted transforms
         dataset = MILDataset(
             root=self.config.root_dir,
             label=task if task not in ["OS", "PFS"] else ("duration", "event"),
@@ -285,6 +324,8 @@ class ExternalValidator:
             segmentation_model=ModelType.cellvit,
             graph_creator=GraphCreatorType.delaunay_radius,
             cell_type=True if model == "HEAD4TYPE" else False,
+            transforms=transforms,  # Apply pre-fitted transforms
+            label_transforms=label_transforms,
         )
 
         return dataset
@@ -298,6 +339,7 @@ class ExternalValidator:
         model_storage: ModelStorage,
         dataloader: Any,
         lit_model_creator: Any,
+        input_dim: int,
     ) -> pd.DataFrame:
         """
         Run predictions using either final model or ensemble.
@@ -306,18 +348,20 @@ class ExternalValidator:
             model_storage: Model storage object
             dataloader: Data loader
             lit_model_creator: Function to create lightning module
+            input_dim: Input dimension for model
 
         Returns:
             DataFrame with predictions and labels
         """
         if self.config.final_model == FinalModel.final:
-            return self._predict_final(model_storage, dataloader, lit_model_creator)
+            return self._predict_final(model_storage, dataloader, lit_model_creator, input_dim)
         else:
             return self._predict_ensemble(
                 model_storage,
                 dataloader,
                 lit_model_creator,
                 self.config.aggregation_method,
+                input_dim,
             )
 
     def _predict_final(
@@ -325,10 +369,17 @@ class ExternalValidator:
         model_storage: ModelStorage,
         dataloader: Any,
         lit_model_creator: Any,
+        input_dim: int,
     ) -> pd.DataFrame:
         """Generate predictions using final model."""
         checkpoint_path = model_storage.load_final_checkpoint()
-        model = lit_model_creator().load_from_checkpoint(checkpoint_path)
+        
+        # Set map_location based on CUDA availability
+        map_location = None if torch.cuda.is_available() else torch.device('cpu')
+        
+        model = lit_model_creator(input_dim).load_from_checkpoint(
+            checkpoint_path, map_location=map_location
+        )
         model.eval()
 
         trainer = Trainer(
@@ -347,6 +398,7 @@ class ExternalValidator:
         dataloader: Any,
         lit_model_creator: Any,
         method: AggregationMethod,
+        input_dim: int,
     ) -> pd.DataFrame:
         """Generate ensemble predictions from all folds."""
         fold_indices = model_storage.list_folds()
@@ -360,10 +412,15 @@ class ExternalValidator:
         )
 
         all_fold_predictions: list[pd.DataFrame] = []
+        
+        # Set map_location based on CUDA availability
+        map_location = None if torch.cuda.is_available() else torch.device('cpu')
 
         for fold_idx in fold_indices:
             checkpoint_path = model_storage.load_fold_checkpoint(fold_idx)
-            model = lit_model_creator().load_from_checkpoint(checkpoint_path)
+            model = lit_model_creator(input_dim).load_from_checkpoint(
+                checkpoint_path, map_location=map_location
+            )
             model.eval()
 
             fold_preds = self._get_predictions_from_trainer(trainer, model, dataloader)

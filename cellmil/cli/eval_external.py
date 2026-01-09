@@ -56,7 +56,7 @@ def setup_parser() -> argparse.ArgumentParser:
     )
     
     parser.add_argument(
-        "--output_dir",
+        "--output-dir",
         type=Path,
         required=True,
         default=Path("./external_validation_reports"),
@@ -71,7 +71,7 @@ def setup_parser() -> argparse.ArgumentParser:
     )
     
     parser.add_argument(
-        "--final_model",
+        "--final-model",
         type=str,
         choices=FinalModel.values(),
         default=FinalModel.final,
@@ -79,7 +79,7 @@ def setup_parser() -> argparse.ArgumentParser:
     )
     
     parser.add_argument(
-        "--aggregation_method",
+        "--aggregation-method",
         type=str,
         choices=AggregationMethod.values(),
         default=AggregationMethod.mean,
@@ -87,21 +87,21 @@ def setup_parser() -> argparse.ArgumentParser:
     )
     
     parser.add_argument(
-        "--dataset_dir",
+        "--dataset-dir",
         type=Path,
         required=True,
         help="Directory containing datasets for external validation",
     )
     
     parser.add_argument(
-        "--root_dir",
+        "--root-dir",
         type=Path,
         required=True,
         help="Root directory for caching datasets",
     )
     
     parser.add_argument(
-        "--dp_metadata_file",
+        "--dp-metadata-file",
         type=Path,
         required=True,
         help="Path to the metadata Excel file for datasets",
@@ -109,8 +109,11 @@ def setup_parser() -> argparse.ArgumentParser:
     
     return parser
 
-if __name__ == "__main__":
+def main():
     parser = setup_parser()
     args = parser.parse_args()
 
     eval_external(args)
+
+if __name__ == "__main__":
+    main()
