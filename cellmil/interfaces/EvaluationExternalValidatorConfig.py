@@ -8,7 +8,7 @@ class AggregationMethod(str, Enum):
     mean = "mean"
     median = "median"
     majority = "majority"
-    weighted_mean = "weighted_mean"
+    everything = "everything"
     
     @classmethod
     def values(cls):

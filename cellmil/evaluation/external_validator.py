@@ -58,8 +58,9 @@ class ExternalValidator:
         # TODO: Make configurable
         self.n_bins = 4
         self.use_parallelism = True  # Set to False when Dataset is not cached and to Debug
-        self.max_workers = 4
-        self.use_gpu = False
+        self.max_workers = 2 
+        self.use_gpu = True
+        self.dataloader_num_workers = 0 
         # TODO: ------
 
         # Ensure output directory exists
@@ -86,22 +87,62 @@ class ExternalValidator:
         model_dirs = self._discover_model_directories()
         logger.info(f"Found {len(model_dirs)} model directories to validate")
 
-        # Process each model and collect results
-        self._process_models(model_dirs)
+        # Check if we need to run all aggregation methods
+        if self.config.aggregation_method == AggregationMethod.everything:
+            logger.info("Running validation with all aggregation methods...")
+            methods = [AggregationMethod.mean, AggregationMethod.median, AggregationMethod.majority]
+            
+            for method in methods:
+                logger.info(f"\n{'='*60}")
+                logger.info(f"Processing with aggregation method: {method}")
+                logger.info(f"{'='*60}")
+                
+                # Create subfolder for this method
+                method_output_dir = self.config.output_dir / str(method)
+                method_output_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Temporarily override aggregation method and output directory
+                original_method = self.config.aggregation_method
+                original_output_dir = self.config.output_dir
+                self.config.aggregation_method = method
+                self.config.output_dir = method_output_dir
+                
+                # Process models with this method
+                self._process_models(model_dirs)
+                
+                if self.df.empty:
+                    logger.warning(
+                        f"No models were successfully processed for method {method}. Skipping reports."
+                    )
+                else:
+                    logger.info(f"Successfully processed {len(self.df)} model configurations for {method}")
+                    # Generate plots and tables for this method
+                    self.create_plots()
+                    self.create_tables()
+                
+                # Restore original configuration
+                self.config.aggregation_method = original_method
+                self.config.output_dir = original_output_dir
+                
+            logger.info("\nExternal validation completed for all aggregation methods!")
+        else:
+            # Single aggregation method
+            # Process each model and collect results
+            self._process_models(model_dirs)
 
-        if self.df.empty:
-            logger.error(
-                "No models were successfully processed. Cannot generate reports."
-            )
-            return
+            if self.df.empty:
+                logger.error(
+                    "No models were successfully processed. Cannot generate reports."
+                )
+                return
 
-        logger.info(f"Successfully processed {len(self.df)} model configurations")
+            logger.info(f"Successfully processed {len(self.df)} model configurations")
 
-        # Generate plots and tables
-        self.create_plots()
-        self.create_tables()
+            # Generate plots and tables
+            self.create_plots()
+            self.create_tables()
 
-        logger.info("External validation completed successfully!")
+            logger.info("External validation completed successfully!")
 
     def _discover_model_directories(self) -> list[Path]:
         """
@@ -126,10 +167,15 @@ class ExternalValidator:
     def _process_models(self, model_dirs: list[Path]):
         """
         Process all model directories and collect results.
+        
+        This method resets self.df before processing to ensure clean results
+        for each aggregation method when using 'everything' mode.
 
         Args:
             model_dirs: List of model directory paths
         """
+        # Reset DataFrame for clean results
+        self.df = pd.DataFrame()
 
         def process_single_model(model_dir: Path) -> dict[str, Any] | None:
             """Process a single model directory."""
@@ -154,9 +200,21 @@ class ExternalValidator:
 
                 with tqdm(total=len(model_dirs), desc="Evaluating models") as pbar:
                     for future in as_completed(future_to_dir):
-                        result = future.result()
-                        if result is not None:
-                            results.append(result)
+                        model_dir = future_to_dir[future]
+                        try:
+                            # Add timeout of 5 minutes per model
+                            result = future.result(timeout=300)
+                            if result is not None:
+                                results.append(result)
+                        except TimeoutError:
+                            logger.error(
+                                f"Model {model_dir.name} timed out after 300 seconds"
+                            )
+                        except Exception as e:
+                            logger.error(
+                                f"Unexpected error for model {model_dir.name}: {e}\n"
+                                f"Traceback:\n{traceback.format_exc()}"
+                            )
                         pbar.update(1)
         else:
             # Sequential processing
@@ -215,10 +273,11 @@ class ExternalValidator:
         logger.info(f"Dataset created with input_dim: {input_dim}")
 
         # Create dataloader based on dataset type
+        # Use num_workers=0 to avoid multiprocessing conflicts with ThreadPoolExecutor
         if isinstance(dataset, (CellGNNMILDataset, PatchGNNMILDataset)):
-            dataloader = DataLoaderPyG(dataset, batch_size=1, shuffle=False, num_workers=8)
+            dataloader = DataLoaderPyG(dataset, batch_size=1, shuffle=False, num_workers=self.dataloader_num_workers)
         else:
-            dataloader = DataLoaderTorch(dataset, batch_size=1, shuffle=False, num_workers=8)
+            dataloader = DataLoaderTorch(dataset, batch_size=1, shuffle=False, num_workers=self.dataloader_num_workers)
 
         # Get lit_model_creator with preprocessed df (needed for loss calculation)
         lit_model_creator = get_lit_model_creator(
@@ -639,7 +698,6 @@ class ExternalValidator:
 
             if (
                 method == AggregationMethod.mean
-                or method == AggregationMethod.weighted_mean
             ):
                 aggregated_logits = torch.mean(stacked_logits, dim=0)
             elif method == AggregationMethod.median:
@@ -693,7 +751,7 @@ class ExternalValidator:
                 
                 stacked_probs = np.stack(all_probs)  # [n_folds, n_samples, n_classes]
                 
-                if method == AggregationMethod.mean or method == AggregationMethod.weighted_mean:
+                if method == AggregationMethod.mean:
                     aggregated_probs = np.mean(stacked_probs, axis=0)
                 elif method == AggregationMethod.median:
                     aggregated_probs = np.median(stacked_probs, axis=0)
