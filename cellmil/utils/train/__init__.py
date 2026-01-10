@@ -5,9 +5,9 @@ import pandas as pd
 import lightning as Pl
 from typing import Callable
 from torch.optim import AdamW
-from cellmil.models.mil.attentiondeepmil import AttentionDeepMIL, LitAttentionDeepMIL
-from cellmil.models.mil.head4type import Head4Type, LitHead4Type
-from cellmil.models.mil.clam import CLAM_SB, LitCLAM
+from cellmil.models.mil.attentiondeepmil import AttentionDeepMIL, LitAttentionDeepMIL, LitSurvAttentionDeepMIL
+from cellmil.models.mil.head4type import Head4Type, LitHead4Type, LitSurvHead4Type
+from cellmil.models.mil.clam import CLAM_SB, LitCLAM, LitSurvCLAM
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from cellmil.utils.train import FocalLoss
 from cellmil.utils.train.dataset import complementary_frequencies
@@ -69,16 +69,19 @@ def preprocess_df(df: pd.DataFrame, task: str) -> pd.DataFrame:
     else:
         raise ValueError(f"Unknown task: {task}")
     
-    df = df.dropna(subset=[task]) # type: ignore
+    if task not in ["OS", "PFS"]: 
+        df = df.dropna(subset=[task]) # type: ignore
     return df
 
 def get_lit_model_creator(model: str, task: str, n_bins: int, feature: str, df: pd.DataFrame, regularization: bool) -> Callable[[int, bool], Pl.LightningModule]:
+    is_survival = task in ["OS", "PFS"]
+    
     if model == "ABMIL":
         def lit_model_creator(input_dim: int, use_lr_scheduler = True) -> Pl.LightningModule:
             model = AttentionDeepMIL(
                 embed_dim=input_dim,
                 size_arg=[256, 128] if feature != "RESNET" and feature != "GIGAPATH" else [500, 128],
-                n_classes=2 if task not in ["OS", "PFS"] else n_bins,
+                n_classes=2 if not is_survival else n_bins,
                 attention_branches=8 if feature != "RESNET" and feature != "GIGAPATH" else 1,
                 temperature=1.5 if feature != "RESNET" and feature != "GIGAPATH" else 1.0
             )
@@ -90,17 +93,26 @@ def get_lit_model_creator(model: str, task: str, n_bins: int, feature: str, df: 
             )
 
             print("\nCreating trainer...")
-            lit_model = LitAttentionDeepMIL(
-                model=model,
-                optimizer=optimizer,
-                loss=FocalLoss(
-                    alpha=complementary_frequencies(df, task)[1], 
-                    gamma=2.0
-                ),
-                lr_scheduler=ReduceLROnPlateau(optimizer, mode="min", patience=5, factor=0.8) if use_lr_scheduler else None,
-                use_aem= True if regularization else False,
-                subsampling=0.8 if regularization else 1.0
-            )
+            if is_survival:
+                lit_model = LitSurvAttentionDeepMIL(
+                    model=model,
+                    optimizer=optimizer,
+                    lr_scheduler=ReduceLROnPlateau(optimizer, mode="min", patience=5, factor=0.8) if use_lr_scheduler else None,
+                    use_aem= True if regularization else False,
+                    subsampling=0.8 if regularization else 1.0
+                )
+            else:
+                lit_model = LitAttentionDeepMIL(
+                    model=model,
+                    optimizer=optimizer,
+                    loss=FocalLoss(
+                        alpha=complementary_frequencies(df, task)[1], 
+                        gamma=2.0
+                    ),
+                    lr_scheduler=ReduceLROnPlateau(optimizer, mode="min", patience=5, factor=0.8) if use_lr_scheduler else None,
+                    use_aem= True if regularization else False,
+                    subsampling=0.8 if regularization else 1.0
+                )
 
             return lit_model
     
@@ -112,7 +124,7 @@ def get_lit_model_creator(model: str, task: str, n_bins: int, feature: str, df: 
             model = Head4Type(
                 embed_dim=input_dim, 
                 size_arg=[256, 128], 
-                n_classes=2 if task not in ["OS", "PFS"] else n_bins, 
+                n_classes=2 if not is_survival else n_bins, 
                 temperature=1.5
             )
 
@@ -123,21 +135,35 @@ def get_lit_model_creator(model: str, task: str, n_bins: int, feature: str, df: 
             )
 
             print("\nCreating trainer...")
-            lit_model = LitHead4Type(
-                model=model,
-                optimizer=optimizer,
-                loss=FocalLoss(
-                    alpha=complementary_frequencies(df, task)[1], gamma=2.0
-                ),
-                lr_scheduler=ReduceLROnPlateau(
-                    optimizer, 
-                    mode="min", 
-                    patience=5, 
-                    factor=0.8
-                ) if use_lr_scheduler else None,
-                use_aem= True if regularization else False,
-                subsampling=0.8 if regularization else 1.0
-            )
+            if is_survival:
+                lit_model = LitSurvHead4Type(
+                    model=model,
+                    optimizer=optimizer,
+                    lr_scheduler=ReduceLROnPlateau(
+                        optimizer, 
+                        mode="min", 
+                        patience=5, 
+                        factor=0.8
+                    ) if use_lr_scheduler else None,
+                    use_aem= True if regularization else False,
+                    subsampling=0.8 if regularization else 1.0
+                )
+            else:
+                lit_model = LitHead4Type(
+                    model=model,
+                    optimizer=optimizer,
+                    loss=FocalLoss(
+                        alpha=complementary_frequencies(df, task)[1], gamma=2.0
+                    ),
+                    lr_scheduler=ReduceLROnPlateau(
+                        optimizer, 
+                        mode="min", 
+                        patience=5, 
+                        factor=0.8
+                    ) if use_lr_scheduler else None,
+                    use_aem= True if regularization else False,
+                    subsampling=0.8 if regularization else 1.0
+                )
 
             return lit_model
         
@@ -147,7 +173,7 @@ def get_lit_model_creator(model: str, task: str, n_bins: int, feature: str, df: 
             model = CLAM_SB(
                 embed_dim=input_dim,
                 size_arg="small", 
-                n_classes=2 if task not in ["OS", "PFS"] else n_bins,
+                n_classes=2 if not is_survival else n_bins,
                 k_sample=8
             )
 
@@ -157,22 +183,36 @@ def get_lit_model_creator(model: str, task: str, n_bins: int, feature: str, df: 
                 weight_decay=1e-1 if regularization else 0.0
             )
             
-            lit_model = LitCLAM(
-                model=model,
-                optimizer=optimizer,
-                loss_slide=FocalLoss(
-                    alpha=complementary_frequencies(df, task)[1], 
-                    gamma=2.0
-                ),
-                lr_scheduler=ReduceLROnPlateau(
-                    optimizer,
-                    mode="min",
-                    patience=5,
-                    factor=0.8
-                ) if use_lr_scheduler else None,
-                use_aem= True if regularization else False,
-                subsampling=0.8 if regularization else 1.0
-            )
+            if is_survival:
+                lit_model = LitSurvCLAM(
+                    model=model,
+                    optimizer=optimizer,
+                    lr_scheduler=ReduceLROnPlateau(
+                        optimizer,
+                        mode="min",
+                        patience=5,
+                        factor=0.8
+                    ) if use_lr_scheduler else None,
+                    use_aem= True if regularization else False,
+                    subsampling=0.8 if regularization else 1.0
+                )
+            else:
+                lit_model = LitCLAM(
+                    model=model,
+                    optimizer=optimizer,
+                    loss_slide=FocalLoss(
+                        alpha=complementary_frequencies(df, task)[1], 
+                        gamma=2.0
+                    ),
+                    lr_scheduler=ReduceLROnPlateau(
+                        optimizer,
+                        mode="min",
+                        patience=5,
+                        factor=0.8
+                    ) if use_lr_scheduler else None,
+                    use_aem= True if regularization else False,
+                    subsampling=0.8 if regularization else 1.0
+                )
 
             return lit_model
         

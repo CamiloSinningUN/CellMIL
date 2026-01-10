@@ -57,10 +57,14 @@ class ExternalValidator:
 
         # TODO: Make configurable
         self.n_bins = 4
-        self.use_parallelism = True  # Set to False when Dataset is not cached and to Debug
-        self.max_workers = 2 
-        self.use_gpu = True
-        self.dataloader_num_workers = 0 
+        self.use_parallelism = False if self.config.final_model == FinalModel.ensemble else True  # It has too many error cases currently with ensenmble
+        self.max_workers = 8
+        self.use_gpu = False
+        self.dataloader_num_workers = 0 if self.use_parallelism else 8
+        
+        self.parallelize_ensemble_folds = True  # Process all folds in parallel for ensemble
+        self.ensemble_max_workers = 3  # One worker per fold (typically 5 folds)
+        self.ensemble_dataloader_workers = 0
         # TODO: ------
 
         # Ensure output directory exists
@@ -88,9 +92,9 @@ class ExternalValidator:
         logger.info(f"Found {len(model_dirs)} model directories to validate")
 
         # Check if we need to run all aggregation methods
-        if self.config.aggregation_method == AggregationMethod.everything:
+        if self.config.final_model == FinalModel.ensemble and self.config.aggregation_method == AggregationMethod.everything:
             logger.info("Running validation with all aggregation methods...")
-            methods = [AggregationMethod.mean, AggregationMethod.median, AggregationMethod.majority]
+            methods = [AggregationMethod.majority, AggregationMethod.median]
             
             for method in methods:
                 logger.info(f"\n{'='*60}")
@@ -521,7 +525,37 @@ class ExternalValidator:
     ) -> pd.DataFrame:
         """Generate ensemble predictions from all folds."""
         fold_indices = model_storage.list_folds()
+        # Set map_location based on CUDA availability and use_gpu flag
+        map_location = None if torch.cuda.is_available() and self.use_gpu else torch.device('cpu')
 
+        if self.parallelize_ensemble_folds and len(fold_indices) > 1:
+            # Parallel processing of folds
+            logger.info(f"Processing {len(fold_indices)} folds in parallel for ensemble...")
+            all_fold_predictions = self._process_folds_parallel(
+                fold_indices, model_storage, lit_model_creator, 
+                task, features, model, map_location
+            )
+        else:
+            # Sequential processing of folds (original behavior)
+            logger.info(f"Processing {len(fold_indices)} folds sequentially for ensemble...")
+            all_fold_predictions = self._process_folds_sequential(
+                fold_indices, model_storage, lit_model_creator,
+                task, features, model, map_location
+            )
+
+        return self._aggregate_fold_predictions(all_fold_predictions, method)
+
+    def _process_folds_sequential(
+        self,
+        fold_indices: list[int],
+        model_storage: ModelStorage,
+        lit_model_creator: Any,
+        task: str,
+        features: str,
+        model: str,
+        map_location: Any,
+    ) -> list[pd.DataFrame]:
+        """Process folds sequentially (original implementation)."""
         trainer = Trainer(
             accelerator="auto" if self.use_gpu else "cpu",
             devices=1,
@@ -529,49 +563,163 @@ class ExternalValidator:
             enable_progress_bar=False,
             enable_checkpointing=False,
         )
-
+        
         all_fold_predictions: list[pd.DataFrame] = []
         
-        # Set map_location based on CUDA availability and use_gpu flag
-        map_location = None if torch.cuda.is_available() and self.use_gpu else torch.device('cpu')
-
         for fold_idx in fold_indices:
             logger.info(f"Processing fold {fold_idx} for ensemble...")
-            
-            # Create dataset with this fold's transforms
-            dataset = self._create_dataset_for_fold(
-                task=task,
-                features=features,
-                model=model,
-                model_storage=model_storage,
-                fold_idx=fold_idx,
+            fold_preds = self._process_single_fold(
+                fold_idx, model_storage, lit_model_creator, trainer,
+                task, features, model, map_location, self.dataloader_num_workers
             )
-            
-            # Get input dimension from this fold's transformed data
-            sample_data = dataset[0]
-            if isinstance(dataset, (CellGNNMILDataset, PatchGNNMILDataset)):
-                input_dim = sample_data.x.shape[1]  # type: ignore
-            else:
-                input_dim = sample_data[0].shape[1]
-            
-            # Create dataloader for this fold
-            if isinstance(dataset, (CellGNNMILDataset, PatchGNNMILDataset)):
-                dataloader = DataLoaderPyG(dataset, batch_size=1, shuffle=False, num_workers=self.dataloader_num_workers)
-            else:
-                dataloader = DataLoaderTorch(dataset, batch_size=1, shuffle=False, num_workers=self.dataloader_num_workers)
-            
-            # Load this fold's checkpoint
-            checkpoint_path = model_storage.load_fold_checkpoint(fold_idx)
-            model = lit_model_creator(input_dim).load_from_checkpoint(
-                checkpoint_path, map_location=map_location
-            )
-            model.eval()
-
-            fold_preds = self._get_predictions_from_trainer(trainer, model, dataloader)
             all_fold_predictions.append(fold_preds)
+        
+        return all_fold_predictions
 
-        return self._aggregate_fold_predictions(all_fold_predictions, method)
+    def _process_folds_parallel(
+        self,
+        fold_indices: list[int],
+        model_storage: ModelStorage,
+        lit_model_creator: Any,
+        task: str,
+        features: str,
+        model: str,
+        map_location: Any,
+    ) -> list[pd.DataFrame]:
+        """
+        Process folds in parallel using ThreadPoolExecutor.
+        
+        Note: Uses ThreadPoolExecutor (not ProcessPoolExecutor) so instance methods
+        are accessible without needing to be static. Threads share memory space.
+        """
+        all_fold_predictions: list[pd.DataFrame] = []
+        
+        with ThreadPoolExecutor(max_workers=self.ensemble_max_workers) as executor:
+            # Submit all folds - pass all arguments explicitly to avoid closure issues
+            future_to_fold = {
+                executor.submit(
+                    self._process_single_fold_with_trainer_creation,
+                    fold_idx,
+                    model_storage,
+                    lit_model_creator,
+                    task,
+                    features,
+                    model,
+                    map_location,
+                    self.ensemble_dataloader_workers,
+                    self.use_gpu
+                ): fold_idx
+                for fold_idx in fold_indices
+            }
+            
+            for future in as_completed(future_to_fold):
+                fold_idx = future_to_fold[future]
+                try:
+                    result = future.result(timeout=600)  # 10 min timeout per fold
+                    if result is not None:
+                        all_fold_predictions.append(result)
+                        logger.info(f"Completed fold {fold_idx}")
+                    else:
+                        logger.error(f"Fold {fold_idx} returned None")
+                except TimeoutError:
+                    logger.error(f"Fold {fold_idx} timed out after 600 seconds")
+                except Exception as e:
+                    logger.error(f"Unexpected error for fold {fold_idx}: {e}\n{traceback.format_exc()}")
+        
+        # Ensure we have predictions from all folds
+        if len(all_fold_predictions) != len(fold_indices):
+            raise RuntimeError(
+                f"Only {len(all_fold_predictions)}/{len(fold_indices)} folds completed successfully"
+            )
+        
+        return all_fold_predictions
 
+    def _process_single_fold_with_trainer_creation(
+        self,
+        fold_idx: int,
+        model_storage: ModelStorage,
+        lit_model_creator: Any,
+        task: str,
+        features: str,
+        model: str,
+        map_location: Any,
+        num_workers: int,
+        use_gpu: bool,
+    ) -> pd.DataFrame | None:
+        """
+        Process a single fold with its own Trainer instance (for parallel execution).
+        
+        This method is called by ThreadPoolExecutor and includes error handling.
+        Each thread creates its own Trainer to avoid conflicts.
+        """
+        try:
+            # Create trainer per thread to avoid conflicts
+            trainer = Trainer(
+                accelerator="auto" if use_gpu else "cpu",
+                devices=1,
+                logger=False,
+                enable_progress_bar=False,
+                enable_checkpointing=False,
+            )
+            
+            return self._process_single_fold(
+                fold_idx, model_storage, lit_model_creator, trainer,
+                task, features, model, map_location, num_workers
+            )
+        except Exception as e:
+            logger.error(f"Failed to process fold {fold_idx}: {e}\n{traceback.format_exc()}")
+            return None
+
+    def _process_single_fold(
+        self,
+        fold_idx: int,
+        model_storage: ModelStorage,
+        lit_model_creator: Any,
+        trainer: Trainer,
+        task: str,
+        features: str,
+        model: str,
+        map_location: Any,
+        num_workers: int,
+    ) -> pd.DataFrame:
+        """Process a single fold - shared by both sequential and parallel processing."""
+        # Create dataset with this fold's transforms
+        dataset = self._create_dataset_for_fold(
+            task=task,
+            features=features,
+            model=model,
+            model_storage=model_storage,
+            fold_idx=fold_idx,
+        )
+        
+        # Get input dimension from this fold's transformed data
+        sample_data = dataset[0]
+        if isinstance(dataset, (CellGNNMILDataset, PatchGNNMILDataset)):
+            input_dim = sample_data.x.shape[1]  # type: ignore
+        else:
+            input_dim = sample_data[0].shape[1]
+        
+        # Create dataloader for this fold
+        if isinstance(dataset, (CellGNNMILDataset, PatchGNNMILDataset)):
+            dataloader = DataLoaderPyG(dataset, batch_size=1, shuffle=False, num_workers=num_workers)
+        else:
+            dataloader = DataLoaderTorch(dataset, batch_size=1, shuffle=False, num_workers=num_workers)
+        
+        # Load this fold's checkpoint
+        checkpoint_path = model_storage.load_fold_checkpoint(fold_idx)
+        fold_model = lit_model_creator(input_dim).load_from_checkpoint(
+            checkpoint_path, map_location=map_location
+        )
+        fold_model.eval()
+
+        fold_preds = self._get_predictions_from_trainer(trainer, fold_model, dataloader)
+        
+        del dataloader
+        del dataset
+        del fold_model
+        
+        return fold_preds
+    
     def _get_predictions_from_trainer(
         self,
         trainer: Trainer,
@@ -615,6 +763,7 @@ class ExternalValidator:
                     # Ensure batch size is 1 for MIL
                     output = model(x.x.squeeze(0))
                 else:
+                    
                     # For standard dataloaders
                     # Handle different batch formats (some models include cell types, etc.)
                     if len(batch) == 2:
