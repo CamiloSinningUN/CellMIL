@@ -5,11 +5,7 @@ import pandas as pd
 import lightning as Pl
 from typing import Callable
 from torch.optim import AdamW
-from cellmil.models.mil.attentiondeepmil import AttentionDeepMIL, LitAttentionDeepMIL, LitSurvAttentionDeepMIL
-from cellmil.models.mil.head4type import Head4Type, LitHead4Type, LitSurvHead4Type
-from cellmil.models.mil.clam import CLAM_SB, LitCLAM, LitSurvCLAM
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from cellmil.utils.train import FocalLoss
 from cellmil.utils.train.dataset import complementary_frequencies
 
 __all__ = [ "split_dataset", "FocalLoss"]
@@ -78,6 +74,8 @@ def get_lit_model_creator(model: str, task: str, n_bins: int, feature: str, df: 
     
     if model == "ABMIL":
         def lit_model_creator(input_dim: int, use_lr_scheduler = True) -> Pl.LightningModule:
+            from cellmil.models.mil.attentiondeepmil import AttentionDeepMIL, LitAttentionDeepMIL, LitSurvAttentionDeepMIL
+            
             model = AttentionDeepMIL(
                 embed_dim=input_dim,
                 size_arg=[256, 128] if feature != "RESNET" and feature != "GIGAPATH" else [500, 128],
@@ -121,6 +119,8 @@ def get_lit_model_creator(model: str, task: str, n_bins: int, feature: str, df: 
             raise ValueError("HEAD4TYPE model is not compatible with RESNET or GIGAPATH features.")
         
         def lit_model_creator(input_dim: int, use_lr_scheduler = True) -> Pl.LightningModule:
+            from cellmil.models.mil.head4type import Head4Type, LitHead4Type, LitSurvHead4Type
+            
             model = Head4Type(
                 embed_dim=input_dim, 
                 size_arg=[256, 128], 
@@ -170,6 +170,8 @@ def get_lit_model_creator(model: str, task: str, n_bins: int, feature: str, df: 
         
     elif model == "CLAM":
         def lit_model_creator(input_dim: int, use_lr_scheduler = True) -> Pl.LightningModule:
+            from cellmil.models.mil.clam import CLAM_SB, LitCLAM, LitSurvCLAM
+            
             model = CLAM_SB(
                 embed_dim=input_dim,
                 size_arg="small", 

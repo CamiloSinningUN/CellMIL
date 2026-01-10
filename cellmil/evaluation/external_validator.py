@@ -64,7 +64,7 @@ class ExternalValidator:
         self.dataloader_num_workers = 0 if self.use_parallelism else 8
         
         self.parallelize_ensemble_folds = True  # Process all folds in parallel for ensemble
-        self.ensemble_max_workers = 5  # One worker per fold (typically 5 folds)
+        self.ensemble_max_workers = 3  # One worker per fold (typically 5 folds)
         self.ensemble_dataloader_workers = 0
         # TODO: ------
 
