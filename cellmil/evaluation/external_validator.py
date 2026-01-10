@@ -255,29 +255,37 @@ class ExternalValidator:
         df = self._load_metadata_df()
         df = preprocess_df(df, components["task"])
 
-        # Create dataset for this model configuration with transforms
-        dataset = self._create_dataset(
-            task=components["task"],
-            features=components["features"],
-            model=components["model"],
-            model_storage=model_storage,
-        )
+        # For final model, create dataset once
+        # For ensemble, we'll create dataset per fold with fold-specific transforms
+        if self.config.final_model == FinalModel.final:
+            # Create dataset for this model configuration with transforms
+            dataset = self._create_dataset(
+                task=components["task"],
+                features=components["features"],
+                model=components["model"],
+                model_storage=model_storage,
+            )
 
-        # Get input dimension from transformed sample
-        sample_data = dataset[0]
-        if isinstance(dataset, (CellGNNMILDataset, PatchGNNMILDataset)):
-            input_dim = sample_data.x.shape[1]  # type: ignore
+            # Get input dimension from transformed sample
+            sample_data = dataset[0]
+            if isinstance(dataset, (CellGNNMILDataset, PatchGNNMILDataset)):
+                input_dim = sample_data.x.shape[1]  # type: ignore
+            else:
+                input_dim = sample_data[0].shape[1]
+
+            logger.info(f"Dataset created with input_dim: {input_dim}")
+
+            # Create dataloader based on dataset type
+            # Use num_workers=0 to avoid multiprocessing conflicts with ThreadPoolExecutor
+            if isinstance(dataset, (CellGNNMILDataset, PatchGNNMILDataset)):
+                dataloader = DataLoaderPyG(dataset, batch_size=1, shuffle=False, num_workers=self.dataloader_num_workers)
+            else:
+                dataloader = DataLoaderTorch(dataset, batch_size=1, shuffle=False, num_workers=self.dataloader_num_workers)
         else:
-            input_dim = sample_data[0].shape[1]
-
-        logger.info(f"Dataset created with input_dim: {input_dim}")
-
-        # Create dataloader based on dataset type
-        # Use num_workers=0 to avoid multiprocessing conflicts with ThreadPoolExecutor
-        if isinstance(dataset, (CellGNNMILDataset, PatchGNNMILDataset)):
-            dataloader = DataLoaderPyG(dataset, batch_size=1, shuffle=False, num_workers=self.dataloader_num_workers)
-        else:
-            dataloader = DataLoaderTorch(dataset, batch_size=1, shuffle=False, num_workers=self.dataloader_num_workers)
+            # For ensemble, we'll create dataloaders per fold in _predict_ensemble
+            dataset = None
+            dataloader = None
+            input_dim = None
 
         # Get lit_model_creator with preprocessed df (needed for loss calculation)
         lit_model_creator = get_lit_model_creator(
@@ -295,6 +303,9 @@ class ExternalValidator:
             dataloader=dataloader,
             lit_model_creator=lit_model_creator,
             input_dim=input_dim,
+            task=components["task"],
+            features=components["features"],
+            model=components["model"],
         )
 
         # Calculate metrics
@@ -386,6 +397,50 @@ class ExternalValidator:
 
         return dataset
 
+    def _create_dataset_for_fold(
+        self, task: str, features: str, model: str, model_storage: ModelStorage, fold_idx: int
+    ) -> CellMILDataset | PatchMILDataset:
+        """
+        Create external validation dataset with a specific fold's transforms.
+
+        Args:
+            task: Task name
+            features: Feature type
+            model: Model name
+            model_storage: Model storage to load transforms from
+            fold_idx: Fold index to load transforms from
+
+        Returns:
+            MILDataset for external validation with fold-specific transforms
+        """
+
+        # Load metadata
+        df = self._load_metadata_df()
+        df = preprocess_df(df, task)
+
+        # Get extractors
+        extractors = get_extractors_from_name(features)
+
+        # Load fitted transforms from specific fold
+        transforms, label_transforms = model_storage.load_fold_transforms(fold_idx)
+        logger.info(f"Loaded transforms from fold {fold_idx}")
+
+        # Create dataset with fitted transforms
+        dataset = MILDataset(
+            root=self.config.root_dir,
+            label=task if task not in ["OS", "PFS"] else ("duration", "event"),
+            folder=self.config.dataset_dir,
+            data=df,
+            extractor=extractors,
+            segmentation_model=ModelType.cellvit,
+            graph_creator=GraphCreatorType.delaunay_radius,
+            cell_type=True if model == "HEAD4TYPE" else False,
+            transforms=transforms,  # Apply pre-fitted transforms from this fold
+            label_transforms=label_transforms,
+        )
+
+        return dataset
+
     def _load_metadata_df(self) -> pd.DataFrame:
         """Load metadata DataFrame."""
         return pd.read_excel(self.config.dp_metadata_file)  # type: ignore
@@ -395,16 +450,22 @@ class ExternalValidator:
         model_storage: ModelStorage,
         dataloader: Any,
         lit_model_creator: Any,
-        input_dim: int,
+        input_dim: int | None,
+        task: str,
+        features: str,
+        model: str,
     ) -> pd.DataFrame:
         """
         Run predictions using either final model or ensemble.
 
         Args:
             model_storage: Model storage object
-            dataloader: Data loader
+            dataloader: Data loader (None for ensemble mode)
             lit_model_creator: Function to create lightning module
-            input_dim: Input dimension for model
+            input_dim: Input dimension for model (None for ensemble mode)
+            task: Task name (for ensemble mode)
+            features: Feature type (for ensemble mode)
+            model: Model name (for ensemble mode)
 
         Returns:
             DataFrame with predictions and labels
@@ -414,10 +475,11 @@ class ExternalValidator:
         else:
             return self._predict_ensemble(
                 model_storage,
-                dataloader,
                 lit_model_creator,
                 self.config.aggregation_method,
-                input_dim,
+                task,
+                features,
+                model,
             )
 
     def _predict_final(
@@ -451,10 +513,11 @@ class ExternalValidator:
     def _predict_ensemble(
         self,
         model_storage: ModelStorage,
-        dataloader: Any,
         lit_model_creator: Any,
         method: AggregationMethod,
-        input_dim: int,
+        task: str,
+        features: str,
+        model: str,
     ) -> pd.DataFrame:
         """Generate ensemble predictions from all folds."""
         fold_indices = model_storage.list_folds()
@@ -473,6 +536,31 @@ class ExternalValidator:
         map_location = None if torch.cuda.is_available() and self.use_gpu else torch.device('cpu')
 
         for fold_idx in fold_indices:
+            logger.info(f"Processing fold {fold_idx} for ensemble...")
+            
+            # Create dataset with this fold's transforms
+            dataset = self._create_dataset_for_fold(
+                task=task,
+                features=features,
+                model=model,
+                model_storage=model_storage,
+                fold_idx=fold_idx,
+            )
+            
+            # Get input dimension from this fold's transformed data
+            sample_data = dataset[0]
+            if isinstance(dataset, (CellGNNMILDataset, PatchGNNMILDataset)):
+                input_dim = sample_data.x.shape[1]  # type: ignore
+            else:
+                input_dim = sample_data[0].shape[1]
+            
+            # Create dataloader for this fold
+            if isinstance(dataset, (CellGNNMILDataset, PatchGNNMILDataset)):
+                dataloader = DataLoaderPyG(dataset, batch_size=1, shuffle=False, num_workers=self.dataloader_num_workers)
+            else:
+                dataloader = DataLoaderTorch(dataset, batch_size=1, shuffle=False, num_workers=self.dataloader_num_workers)
+            
+            # Load this fold's checkpoint
             checkpoint_path = model_storage.load_fold_checkpoint(fold_idx)
             model = lit_model_creator(input_dim).load_from_checkpoint(
                 checkpoint_path, map_location=map_location
