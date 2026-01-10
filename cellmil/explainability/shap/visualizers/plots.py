@@ -155,6 +155,7 @@ class SHAPVisualizer:
             ),
             max_display=self.config.top_features,
             show=False,
+            group_remaining_features=False,
         )
 
         # Save
