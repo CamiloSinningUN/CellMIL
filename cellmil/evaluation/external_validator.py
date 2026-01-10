@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Any, cast
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import traceback
+import json
 import pandas as pd
 import numpy as np
 import torch
@@ -63,12 +64,15 @@ class ExternalValidator:
         self.dataloader_num_workers = 0 if self.use_parallelism else 8
         
         self.parallelize_ensemble_folds = True  # Process all folds in parallel for ensemble
-        self.ensemble_max_workers = 3  # One worker per fold (typically 5 folds)
+        self.ensemble_max_workers = 5  # One worker per fold (typically 5 folds)
         self.ensemble_dataloader_workers = 0
         # TODO: ------
 
         # Ensure output directory exists
         self.config.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Define log file path
+        self.log_file = self.config.output_dir / "results_log.json"
 
         logger.info(
             f"External Validator initialized with output dir: {self.config.output_dir}"
@@ -105,11 +109,13 @@ class ExternalValidator:
                 method_output_dir = self.config.output_dir / str(method)
                 method_output_dir.mkdir(parents=True, exist_ok=True)
                 
-                # Temporarily override aggregation method and output directory
+                # Temporarily override aggregation method, output directory, and log file
                 original_method = self.config.aggregation_method
                 original_output_dir = self.config.output_dir
+                original_log_file = self.log_file
                 self.config.aggregation_method = method
                 self.config.output_dir = method_output_dir
+                self.log_file = method_output_dir / "results_log.json"
                 
                 # Process models with this method
                 self._process_models(model_dirs)
@@ -127,6 +133,7 @@ class ExternalValidator:
                 # Restore original configuration
                 self.config.aggregation_method = original_method
                 self.config.output_dir = original_output_dir
+                self.log_file = original_log_file
                 
             logger.info("\nExternal validation completed for all aggregation methods!")
         else:
@@ -168,6 +175,64 @@ class ExternalValidator:
 
         return sorted(model_dirs)
 
+    def _load_results_log(self) -> dict[str, dict[str, Any]]:
+        """
+        Load existing results from log file.
+        
+        Returns:
+            Dictionary mapping experiment_id to result dict
+        """
+        if not self.log_file.exists():
+            logger.info("No existing results log found, starting fresh")
+            return {}
+        
+        try:
+            with open(self.log_file, 'r') as f:
+                results_list = json.load(f)
+            
+            # Convert list to dict keyed by experiment_id
+            results_dict = {r["experiment_id"]: r for r in results_list}
+            logger.info(f"Loaded {len(results_dict)} existing results from log file")
+            return results_dict
+        except Exception as e:
+            logger.warning(f"Failed to load results log: {e}. Starting fresh.")
+            return {}
+    
+    def _save_result_to_log(self, result: dict[str, Any]):
+        """
+        Save a single result to the log file (append mode).
+        
+        Args:
+            result: Result dictionary to save
+        """
+        try:
+            # Load existing results
+            existing_results = self._load_results_log()
+            
+            # Update with new result
+            existing_results[result["experiment_id"]] = result
+            
+            # Write back to file
+            with open(self.log_file, 'w') as f:
+                json.dump(list(existing_results.values()), f, indent=2)
+            
+            logger.debug(f"Saved result for {result['experiment_id']} to log file")
+        except Exception as e:
+            logger.error(f"Failed to save result to log: {e}")
+    
+    def _is_model_processed(self, experiment_id: str, existing_results: dict[str, dict[str, Any]]) -> bool:
+        """
+        Check if a model has already been processed.
+        
+        Args:
+            experiment_id: Experiment ID to check
+            existing_results: Dictionary of existing results
+        
+        Returns:
+            True if model has been processed, False otherwise
+        """
+        return experiment_id in existing_results
+
     def _process_models(self, model_dirs: list[Path]):
         """
         Process all model directories and collect results.
@@ -178,13 +243,39 @@ class ExternalValidator:
         Args:
             model_dirs: List of model directory paths
         """
-        # Reset DataFrame for clean results
-        self.df = pd.DataFrame()
+        # Load existing results from log
+        existing_results = self._load_results_log()
+        
+        # Start with existing results
+        results: list[dict[str, Any]] = list(existing_results.values())
+        logger.info(f"Starting with {len(results)} existing results")
+        
+        # Filter out already processed models
+        models_to_process = []
+        for model_dir in model_dirs:
+            # Need to peek at experiment name to check if processed
+            try:
+                model_storage = ModelStorage.from_directory(model_dir)
+                if model_storage.experiment_metadata:
+                    experiment_name = model_storage.experiment_metadata.name
+                    if self._is_model_processed(experiment_name, existing_results):
+                        logger.info(f"Skipping already processed model: {experiment_name}")
+                        continue
+            except Exception as e:
+                logger.warning(f"Could not check if {model_dir.name} is processed: {e}")
+            
+            models_to_process.append(model_dir)
+        
+        logger.info(f"Found {len(models_to_process)} models to process (out of {len(model_dirs)} total)")
 
         def process_single_model(model_dir: Path) -> dict[str, Any] | None:
             """Process a single model directory."""
             try:
-                return self._evaluate_model(model_dir)
+                result = self._evaluate_model(model_dir)
+                if result is not None:
+                    # Save to log immediately after successful processing
+                    self._save_result_to_log(result)
+                return result
             except Exception as e:
                 logger.error(
                     f"Failed to process model {model_dir.name}: {e}\n"
@@ -192,17 +283,15 @@ class ExternalValidator:
                 )
                 return None
 
-        results: list[dict[str, Any]] = []
-
         if self.use_parallelism:
             # Use ThreadPoolExecutor for parallel processing
             with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
                 future_to_dir = {
                     executor.submit(process_single_model, model_dir): model_dir
-                    for model_dir in model_dirs
+                    for model_dir in models_to_process
                 }
 
-                with tqdm(total=len(model_dirs), desc="Evaluating models") as pbar:
+                with tqdm(total=len(models_to_process), desc="Evaluating models") as pbar:
                     for future in as_completed(future_to_dir):
                         model_dir = future_to_dir[future]
                         try:
@@ -222,8 +311,8 @@ class ExternalValidator:
                         pbar.update(1)
         else:
             # Sequential processing
-            with tqdm(total=len(model_dirs), desc="Evaluating models") as pbar:
-                for model_dir in model_dirs:
+            with tqdm(total=len(models_to_process), desc="Evaluating models") as pbar:
+                for model_dir in models_to_process:
                     result = process_single_model(model_dir)
                     if result is not None:
                         results.append(result)
