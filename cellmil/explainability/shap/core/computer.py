@@ -136,7 +136,13 @@ class SHAPComputer:
         with torch.no_grad():
             x_tensor = torch.FloatTensor(explain_features).to(device)
             h = feature_extractor(x_tensor)  # Transform through feature extractor first
-            attention_logits = attention_module(h)  # [n_non_background, n_heads]
+            attention_output = attention_module(h)  # [n_non_background, n_heads]
+            
+            # Handle tuple return (CLAM models return (attention_scores, h))
+            if isinstance(attention_output, tuple):
+                attention_logits = attention_output[0]
+            else:
+                attention_logits = attention_output
             
             # Get mean attention across heads
             if attention_logits.dim() > 1:
@@ -166,6 +172,11 @@ class SHAPComputer:
         with torch.no_grad():
             h_test = feature_extractor(explain_tensor[:1])
             test_output = attention_module(h_test)
+            
+            # Handle tuple return (CLAM models return (attention_scores, h))
+            if isinstance(test_output, tuple):
+                test_output = test_output[0]
+            
             num_heads = test_output.shape[1] if test_output.dim() > 1 else 1
 
         logger.info(f"Attention module has {num_heads} head(s)")
@@ -263,7 +274,14 @@ class SHAPComputer:
                 # Transform raw features through feature extractor
                 h = self.feature_extractor(x)
                 # Get attention scores
-                out = self.attention_module(h)
+                attention_output = self.attention_module(h)
+                
+                # Handle tuple return (CLAM models return (attention_scores, h))
+                if isinstance(attention_output, tuple):
+                    out = attention_output[0]
+                else:
+                    out = attention_output
+                
                 if self.head_idx is None:
                     # Return mean across heads
                     if out.dim() > 1:
@@ -374,7 +392,13 @@ class SHAPComputer:
                 
                 # Apply same pipeline as SHAP wrapper
                 h = feature_extractor(batch_features)  # Transform features
-                attention_logits = attention_module(h)  # Compute attention
+                attention_output = attention_module(h)  # Compute attention
+                
+                # Handle tuple return (CLAM models return (attention_scores, h))
+                if isinstance(attention_output, tuple):
+                    attention_logits = attention_output[0]
+                else:
+                    attention_logits = attention_output
                 
                 # Get mean across heads if multi-head
                 if attention_logits.dim() > 1:

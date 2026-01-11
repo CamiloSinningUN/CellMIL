@@ -32,7 +32,7 @@ class SHAPExplainerConfig(BaseModel):
         description="Number of quantile bins for stratified sampling based on attention scores",
     )
     samples_per_bin: int = Field(
-        default=1000,
+        default=10000,
         description="Number of cells to sample from each attention quantile bin",
     )
     max_total_samples: Optional[int] = Field(
