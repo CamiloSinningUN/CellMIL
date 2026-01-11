@@ -22,6 +22,7 @@ from cellmil.interfaces.FeatureExtractorConfig import ExtractorType
 from cellmil.interfaces.CellSegmenterConfig import ModelType
 from cellmil.interfaces.GraphCreatorConfig import GraphCreatorType
 from cellmil.datamodels.transforms import TransformPipeline
+from cellmil.datamodels.model import ModelStorage
 from cellmil.datamodels.datasets.utils import (
     get_cell_features,
     get_cell_types,
@@ -33,6 +34,13 @@ from cellmil.utils import logger
 from cellmil.models.mil import LitAttentionDeepMIL
 from cellmil.models.mil.head4type import LitHead4Type
 from cellmil.models.mil.clam import LitCLAM
+
+# Model class registry for loading from checkpoint
+MODEL_CLASS_REGISTRY = {
+    "LitAttentionDeepMIL": LitAttentionDeepMIL,
+    "LitCLAM": LitCLAM,
+    "LitHead4Type": LitHead4Type,
+}
 
 
 class SHAPExplainer:
@@ -86,26 +94,20 @@ class SHAPExplainer:
 
     def generate_explanation(
         self,
-        model: LitAttentionDeepMIL | LitHead4Type | LitCLAM,
+        model_storage: ModelStorage,
         dataset_folder: Path | str,
         data: pd.DataFrame,
-        extractor: ExtractorType | list[ExtractorType],
-        segmentation_model: ModelType,
-        transforms_path: Path | str,
-        graph_creator: Optional[GraphCreatorType] = None,
+        fold_idx: Optional[int] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """
         Generate SHAP explanations for the given model and dataset.
 
         Args:
-            model: The MIL model to explain (AttentionDeepMIL, Head4Type, or CLAM)
+            model_storage: ModelStorage instance containing model checkpoint, transforms, and configuration
             dataset_folder: Path to the folder containing all slide data
             data: DataFrame with slide metadata (must have 'FULL_PATH' column)
-            extractor: Feature extractor type used for the slides
-            segmentation_model: Segmentation model used for cell detection
-            transforms_path: Path to the transform pipeline file
-            graph_creator: Graph creation method (if needed for features)
+            fold_idx: Optional fold index to use. If None, uses the final model. Must be in range [0, k_folds-1]
             **kwargs: Additional arguments
 
         Returns:
@@ -113,8 +115,65 @@ class SHAPExplainer:
         """
         logger.info("Starting SHAP explanation generation")
 
+        # Load experiment metadata
+        if model_storage.experiment_metadata is None:
+            raise ValueError("No experiment metadata found in model_storage")
+
+        experiment_metadata = model_storage.experiment_metadata
+        dataset_config = experiment_metadata.dataset_config
+        model_config = experiment_metadata.model_config
+
+        # Extract configuration from model_storage
+        extractor = dataset_config.get("extractor")
+        segmentation_model = dataset_config.get("segmentation_model")
+        graph_creator = dataset_config.get("graph_creator")
+
+        if extractor is None or segmentation_model is None:
+            raise ValueError(
+                "extractor and segmentation_model must be in dataset_config"
+            )
+
+        logger.info(f"Loaded config - Extractor: {extractor}, Segmentation: {segmentation_model}")
+
+        # Determine which model and transforms to load
+        if fold_idx is not None:
+            # Validate fold index
+            available_folds = model_storage.list_folds()
+            if fold_idx not in available_folds:
+                raise ValueError(
+                    f"fold_idx {fold_idx} not available. Available folds: {available_folds}"
+                )
+            logger.info(f"Loading model and transforms from fold {fold_idx}")
+            checkpoint_path = model_storage.load_fold_checkpoint(fold_idx)
+            transforms, label_transforms = model_storage.load_fold_transforms(fold_idx)
+        else:
+            # Use final model
+            if not model_storage.has_final_model():
+                raise ValueError("No final model found in model_storage")
+            logger.info("Loading final model and transforms")
+            checkpoint_path = model_storage.load_final_checkpoint()
+            transforms, label_transforms = model_storage.load_final_transforms()
+
+        # Load model from checkpoint using model class from config
+        model_class_name = model_config.get("model_class")
+        if model_class_name is None:
+            raise ValueError("model_class not found in model_config")
+
+        if model_class_name not in MODEL_CLASS_REGISTRY:
+            raise ValueError(
+                f"Unknown model class: {model_class_name}. "
+                f"Available classes: {list(MODEL_CLASS_REGISTRY.keys())}"
+            )
+
+        model_class = MODEL_CLASS_REGISTRY[model_class_name]
+        logger.info(f"Loading model from checkpoint: {checkpoint_path}")
+        model = model_class.load_from_checkpoint(str(checkpoint_path))
+        model.eval()
+
+        # Use the fold transforms for feature transformation
+        transforms_to_use = transforms if transforms is not None else None
+
         dataset_folder = Path(dataset_folder)
-        transforms_path = Path(transforms_path)
 
         # Check GPU availability and move model to GPU if available
         if torch.cuda.is_available():
@@ -129,11 +188,9 @@ class SHAPExplainer:
         # Validate model type
         self._validate_model(model)
 
-        # Load transforms
-        if transforms_path.exists():
-            transforms = TransformPipeline.load(transforms_path)
-        else:
-            raise FileNotFoundError(f"Transforms file not found: {transforms_path}")
+        # Validate transforms are available
+        if transforms_to_use is None:
+            raise ValueError("No transforms found in model checkpoint")
 
         # Create output directory
         self.config.output_path.mkdir(parents=True, exist_ok=True)
@@ -146,7 +203,7 @@ class SHAPExplainer:
             extractor=extractor,
             segmentation_model=segmentation_model,
             graph_creator=graph_creator,
-            transforms=transforms,
+            transforms=transforms_to_use,
         )
 
         logger.info(f"Total cells loaded: {cell_data['features'].shape[0]:,}")
