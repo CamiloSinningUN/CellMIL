@@ -73,6 +73,10 @@ class ExternalValidator:
         
         # Define log file path
         self.log_file = self.config.output_dir / "results_log.json"
+        
+        # Create predictions directory
+        self.predictions_dir = self.config.output_dir / "predictions"
+        self.predictions_dir.mkdir(parents=True, exist_ok=True)
 
         logger.info(
             f"External Validator initialized with output dir: {self.config.output_dir}"
@@ -405,6 +409,9 @@ class ExternalValidator:
         task_type = self._detect_task_type(predictions_df)
         metrics = self._calculate_metrics(predictions_df, task_type)
 
+        # Save slide-level predictions to CSV
+        predictions_file = self._save_predictions(predictions_df, experiment_name)
+
         # Build result dictionary
         result: dict[str, Any] = {
             "experiment_id": experiment_name,
@@ -413,10 +420,12 @@ class ExternalValidator:
             "model": components["model"],
             "reg": components["reg"],
             "stra": components["stra"],
+            "predictions_file": str(predictions_file.relative_to(self.config.output_dir)),
             **metrics,
         }
 
         logger.info(f"Completed evaluation for {experiment_name}: {metrics}")
+        logger.info(f"Saved predictions to: {predictions_file}")
 
         return result
 
@@ -1112,6 +1121,30 @@ class ExternalValidator:
                         "y_pred": y_pred,
                     }
                 )
+
+    def _save_predictions(
+        self, predictions_df: pd.DataFrame, experiment_name: str
+    ) -> Path:
+        """
+        Save slide-level predictions to a CSV file.
+
+        Args:
+            predictions_df: DataFrame containing predictions and labels for each slide
+            experiment_name: Name of the experiment (used as filename)
+
+        Returns:
+            Path to the saved predictions file
+        """
+        predictions_file = self.predictions_dir / f"{experiment_name}_predictions.csv"
+        
+        # Save predictions with slide names as index
+        predictions_df.to_csv(predictions_file, index=True)
+        
+        logger.info(
+            f"Saved {len(predictions_df)} slide predictions to {predictions_file}"
+        )
+        
+        return predictions_file
 
     def _detect_task_type(self, predictions_df: pd.DataFrame) -> str:
         """Detect whether task is classification or survival."""

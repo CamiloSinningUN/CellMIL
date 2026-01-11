@@ -7,7 +7,31 @@ from typing import Any, Union, Optional
 from dataclasses import dataclass, asdict
 from cellmil.utils import logger
 from cellmil.datamodels.transforms import TransformPipeline, LabelTransformPipeline
+
+
+def convert_numpy_types(obj: Any) -> Any:
+    """
+    Recursively convert numpy types to Python native types for JSON serialization.
+    
+    Args:
+        obj: Object to convert
         
+    Returns:
+        Object with numpy types converted to Python native types
+    """
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy_types(item) for item in obj]
+    elif isinstance(obj, tuple):
+        return tuple(convert_numpy_types(item) for item in obj)
+    return obj
 
 
 @dataclass
@@ -171,7 +195,8 @@ class ModelStorage:
 
         # Save metadata
         with open(fold_dir / "metadata.json", "w") as f:
-            json.dump(asdict(metadata), f, indent=2)
+            metadata_dict = convert_numpy_types(asdict(metadata))
+            json.dump(metadata_dict, f, indent=2)
 
         self.fold_metadata[fold_idx] = metadata
 
@@ -179,7 +204,8 @@ class ModelStorage:
         """Save overall experiment metadata."""
         self.experiment_metadata = metadata
         with open(self.output_dir / "experiment_metadata.json", "w") as f:
-            json.dump(asdict(metadata), f, indent=2)
+            metadata_dict = convert_numpy_types(asdict(metadata))
+            json.dump(metadata_dict, f, indent=2)
 
     def save_final_model(
         self,
@@ -220,7 +246,8 @@ class ModelStorage:
         }
 
         with open(final_dir / "metadata.json", "w") as f:
-            json.dump(metadata, f, indent=2)
+            metadata_converted = convert_numpy_types(metadata)
+            json.dump(metadata_converted, f, indent=2)
 
     def load_fold_checkpoint(self, fold_idx: int) -> Path:
         """Load checkpoint path for a specific fold."""
