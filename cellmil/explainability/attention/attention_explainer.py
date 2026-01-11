@@ -4,6 +4,7 @@ from torch_geometric.data import Data  # type: ignore
 import torch
 import lightning as Pl
 import json
+import re
 
 from cellmil.interfaces.AttentionExplainerConfig import (
     AttentionExplainerConfig,
@@ -47,6 +48,45 @@ MODEL_CLASS_REGISTRY = {
     "LitGraphMIL": LitGraphMIL,
     "LitHead4Type": LitHead4Type,
 }
+
+
+def _parse_enum_config(value: Any) -> Any:
+    """
+    Parse configuration values that may be stored as enum string representations.
+    
+    Handles cases where values are stored as:
+    - String representation of enums: "<ExtractorType.morphometrics: 'morphometrics'>"
+    - List of enum representations: "[<ExtractorType.morphometrics: 'morphometrics'>, ...]"
+    - Regular strings or lists: "morphometrics" or ["morphometrics", ...]
+    
+    Args:
+        value: The configuration value to parse
+        
+    Returns:
+        Parsed value with enum representations converted to their string values
+    """
+    if value is None:
+        return None
+    
+    # Convert to string for processing
+    value_str = str(value)
+    
+    # Check if it's a list representation (starts with [ and ends with ])
+    if value_str.strip().startswith("[") and value_str.strip().endswith("]"):
+        # Extract all quoted strings from the list
+        matches = re.findall(r"'([^']*)'", value_str)
+        if matches:
+            return matches if len(matches) > 1 else matches[0]
+    
+    # Check if it's a single enum representation
+    if "<" in value_str and ":" in value_str and ">" in value_str:
+        # Extract the quoted value from enum: <Type.name: 'value'>
+        match = re.search(r"'([^']*)'", value_str)
+        if match:
+            return match.group(1)
+    
+    # Return as-is if no enum representation found
+    return value
 
 
 class AttentionExplainer:
@@ -104,9 +144,9 @@ class AttentionExplainer:
         model_config = experiment_metadata.model_config
 
         # Extract configuration from model_storage
-        extractor = dataset_config.get("extractor")
-        segmentation_model = dataset_config.get("segmentation_model")
-        graph_creator = dataset_config.get("graph_creator")
+        extractor = _parse_enum_config(dataset_config.get("extractor"))
+        segmentation_model = _parse_enum_config(dataset_config.get("segmentation_model"))
+        graph_creator = _parse_enum_config(dataset_config.get("graph_creator"))
 
         if extractor is None or segmentation_model is None:
             raise ValueError(
