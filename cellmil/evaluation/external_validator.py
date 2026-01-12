@@ -64,9 +64,18 @@ class ExternalValidator:
         self.dataloader_num_workers = 0 if self.use_parallelism else 8
         
         self.parallelize_ensemble_folds = True  # Process all folds in parallel for ensemble
-        self.ensemble_max_workers = 3  # One worker per fold (typically 5 folds)
+        self.ensemble_max_workers = 5  # One worker per fold (typically 5 folds)
         self.ensemble_dataloader_workers = 0
+        
+        # CPU thread limiting (to avoid overusing resources)
+        self.cpu_threads = 32 # Limit CPU threads per model
         # TODO: ------
+
+        # Limit CPU thread usage to avoid overwhelming the system
+        if not self.use_gpu:
+            torch.set_num_threads(self.cpu_threads)
+            torch.set_num_interop_threads(self.cpu_threads)
+            logger.info(f"Limited PyTorch to {self.cpu_threads} CPU threads")
 
         # Ensure output directory exists
         self.config.output_dir.mkdir(parents=True, exist_ok=True)
@@ -117,9 +126,12 @@ class ExternalValidator:
                 original_method = self.config.aggregation_method
                 original_output_dir = self.config.output_dir
                 original_log_file = self.log_file
+                original_predictions_dir = self.predictions_dir
                 self.config.aggregation_method = method
                 self.config.output_dir = method_output_dir
                 self.log_file = method_output_dir / "results_log.json"
+                self.predictions_dir = method_output_dir / "predictions"
+                self.predictions_dir.mkdir(parents=True, exist_ok=True)
                 
                 # Process models with this method
                 self._process_models(model_dirs)
@@ -138,6 +150,7 @@ class ExternalValidator:
                 self.config.aggregation_method = original_method
                 self.config.output_dir = original_output_dir
                 self.log_file = original_log_file
+                self.predictions_dir = original_predictions_dir
                 
             logger.info("\nExternal validation completed for all aggregation methods!")
         else:
@@ -420,7 +433,7 @@ class ExternalValidator:
             "model": components["model"],
             "reg": components["reg"],
             "stra": components["stra"],
-            "predictions_file": str(predictions_file.relative_to(self.config.output_dir)),
+            "predictions_file": f"predictions/{experiment_name}_predictions.csv",
             **metrics,
         }
 
