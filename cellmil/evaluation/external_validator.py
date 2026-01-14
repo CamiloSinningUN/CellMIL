@@ -1031,6 +1031,10 @@ class ExternalValidator:
         """Aggregate predictions from multiple folds."""
         # Check if survival or classification
         is_survival = "logits" in fold_predictions[0].columns
+        
+        logger.info(f"Aggregating {len(fold_predictions)} fold predictions using method: {method}")
+        logger.info(f"Is survival: {is_survival}")
+        logger.info(f"Available columns: {fold_predictions[0].columns.tolist()}")
 
         if is_survival:
             # For survival: aggregate logits (not risk scores)
@@ -1069,10 +1073,17 @@ class ExternalValidator:
                 }
             )
         else:
-            # For classification: check method first, then use available data
-            # If majority voting is requested, always use it regardless of available data
+            # For classification: aggregate based on method
+            # First check if we have probabilities available
+            # prob_columns = [
+            #     col for col in fold_predictions[0].columns if col.startswith("prob_class_")
+            # ]
+            
+            logger.info(f"Classification: Found {len(prob_columns)} probability columns")
+            
             if method == AggregationMethod.majority:
-                # Use majority voting
+                logger.info("Using majority voting on predicted labels")
+                # Majority voting: use predicted labels directly
                 all_preds = np.stack([df["y_pred"].values for df in fold_predictions])  # type: ignore
                 y_pred = stats.mode(all_preds, axis=0, keepdims=False)[0]  # type: ignore
 
@@ -1083,12 +1094,9 @@ class ExternalValidator:
                     }
                 )
             
-            # For other methods, aggregate probabilities (better than logits due to scale differences)
-            prob_columns = [
-                col for col in fold_predictions[0].columns if col.startswith("prob_class_")
-            ]
-            
+            # For mean/median methods, aggregate probabilities (better than logits due to scale differences)
             if prob_columns:
+                logger.info(f"Aggregating {len(prob_columns)} probability columns using {method}")
                 # Aggregate probabilities (preferred - handles different model scales)
                 n_classes = len(prob_columns)
                 all_probs = []
@@ -1124,7 +1132,8 @@ class ExternalValidator:
                 
                 return pd.DataFrame(result_dict)
             else:
-                # Fallback to majority voting if no logits/probabilities
+                logger.warning("No probability columns found, falling back to majority voting on predicted labels")
+                # Fallback to majority voting if no probabilities available
                 all_preds = np.stack([df["y_pred"].values for df in fold_predictions])  # type: ignore
                 y_pred = stats.mode(all_preds, axis=0, keepdims=False)[0]  # type: ignore
 

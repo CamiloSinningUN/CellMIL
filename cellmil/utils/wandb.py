@@ -47,7 +47,7 @@ class WandbClient:
         self.tasks = tasks
 
         try:
-            self.api = wandb.Api()
+            self.api = wandb.Api(timeout=100)
         except Exception as e:
             raise RuntimeError(f"Failed to initialize W&B API: {e}") from e
 
