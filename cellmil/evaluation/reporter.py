@@ -105,18 +105,9 @@ class EvaluationReporter:
         """Generate plots for all metrics and tasks (legacy method)."""
         self.create_plots()
 
-        # Common configuration for all tables
-        base_config: dict[str, Any] = {
+        # Common configuration shared by classification and survival tables
+        common_config: dict[str, Any] = {
             "baseline_features": ["RESNET", "GIGAPATH"],
-            "task_mapping": {
-                "ADENOvsSQUA": "Adeno. vs Squa.",
-                "PDL1": "PDL1",
-                "DCR": "DCR",
-                "OS6": "OS6",
-                "OS24": "OS24",
-                "ORR": "ORR",
-                "CBR": "CBR",
-            },
             "feature_mapping": {
                 "RESNET": "ResNet50",
                 "GIGAPATH": "GigaPath",
@@ -135,6 +126,20 @@ class EvaluationReporter:
                 "recall": "Bal. Acc.",
                 "c_index": "C-Index",
             },
+        }
+
+        # Classification-specific configuration
+        classification_config: dict[str, Any] = {
+            **common_config,
+            "task_mapping": {
+                "ADENOvsSQUA": "Adeno. vs Squa.",
+                "PDL1": "PDL1",
+                "DCR": "DCR",
+                "OS6": "OS6",
+                "OS24": "OS24",
+                "ORR": "ORR",
+                "CBR": "CBR",
+            },
             "support_mapping": {
                 "DCR": 343,
                 "ORR": 343,
@@ -146,6 +151,19 @@ class EvaluationReporter:
             },
         }
 
+        # Survival-specific configuration
+        survival_config: dict[str, Any] = {
+            **common_config,
+            "task_mapping": {
+                "OS": "OS",
+                "PFS": "PFS",
+            },
+            "support_mapping": {
+                "OS": 343,
+                "PFS": 343,
+            },
+        }
+
         classification_stratified_config = TableConfig(
             output_file=str(self.config.output_dir / "classification_stratified.tex"),
             table_type="classification",
@@ -153,7 +171,7 @@ class EvaluationReporter:
             classification_metrics=["f1", "recall"],
             caption="\\textbf{Classification performance across all tasks (cell-stratified).} Performance measured by Macro-F1 and Balanced Accuracy for binary classification tasks. Results show mean $\\pm$ standard deviation across label-stratified 5-fold cross-validation with additional stratification by cell cardinality. ``All'' refers to the use of all feature groups with correlation filtering ($\\rho < 0.95$). Bold values indicate best performance per task and metric.",
             label="tab:results_classification_stratified",
-            **base_config,
+            **classification_config,
         )
 
         classification_non_stratified_config = TableConfig(
@@ -165,7 +183,7 @@ class EvaluationReporter:
             classification_metrics=["f1", "recall"],
             caption="\\textbf{Classification performance across all tasks.} Performance measured by Macro-F1 and Balanced Accuracy for binary classification tasks. Results show mean $\\pm$ standard deviation across label-stratified 5-fold cross-validation. ``All'' refers to the use of all feature groups with correlation filtering ($\\rho < 0.95$). Bold values indicate best performance per task and metric.",
             label="tab:results_classification",
-            **base_config,
+            **classification_config,
         )
 
         survival_stratified_config = TableConfig(
@@ -175,7 +193,7 @@ class EvaluationReporter:
             survival_metrics=["c_index"],
             caption="\\textbf{Survival analysis performance across survival tasks (cell-stratified).} Performance measured by Concordance Index (C-Index) for survival prediction tasks. Results show mean $\\pm$ standard deviation across label-stratified 5-fold cross-validation with additional stratification by cell cardinality. ``All'' refers to the use of all feature groups with correlation filtering ($\\rho < 0.95$). Bold values indicate best performance per task.",
             label="tab:results_survival_stratified",
-            **base_config,
+            **survival_config,
         )
 
         survival_non_stratified_config = TableConfig(
@@ -185,7 +203,7 @@ class EvaluationReporter:
             survival_metrics=["c_index"],
             caption="\\textbf{Survival analysis performance across survival tasks.} Performance measured by Concordance Index (C-Index) for survival prediction tasks. Results show mean $\\pm$ standard deviation across label-stratified 5-fold cross-validation. ``All'' refers to the use of all feature groups with correlation filtering ($\\rho < 0.95$). Bold values indicate best performance per task.",
             label="tab:results_survival",
-            **base_config,
+            **survival_config,
         )
 
         self.create_tables(
