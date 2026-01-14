@@ -1079,8 +1079,6 @@ class ExternalValidator:
             #     col for col in fold_predictions[0].columns if col.startswith("prob_class_")
             # ]
             
-            logger.info(f"Classification: Found {len(prob_columns)} probability columns")
-            
             if method == AggregationMethod.majority:
                 logger.info("Using majority voting on predicted labels")
                 # Majority voting: use predicted labels directly
@@ -1093,6 +1091,12 @@ class ExternalValidator:
                         "y_pred": y_pred,
                     }
                 )
+            
+            prob_columns = [
+                col for col in fold_predictions[0].columns if col.startswith("prob_class_")
+            ]
+            
+            logger.info(f"Classification: Found {len(prob_columns)} probability columns")
             
             # For mean/median methods, aggregate probabilities (better than logits due to scale differences)
             if prob_columns:
