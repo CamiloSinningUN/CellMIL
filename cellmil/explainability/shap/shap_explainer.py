@@ -7,7 +7,7 @@ performs stratified sampling based on attention quantiles, and computes SHAP val
 """
 
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple, cast
+from typing import Dict, Any, Optional, List, Tuple, Union, cast, Literal
 import torch
 import numpy as np
 import pandas as pd
@@ -33,14 +33,18 @@ from cellmil.explainability.shap.core import AttentionStratifiedSampler, SHAPCom
 from cellmil.explainability.shap.visualizers import SHAPVisualizer
 from cellmil.utils import logger
 from cellmil.models.mil import LitAttentionDeepMIL
-from cellmil.models.mil.head4type import LitHead4Type
-from cellmil.models.mil.clam import LitCLAM
+from cellmil.models.mil.attentiondeepmil import LitSurvAttentionDeepMIL
+from cellmil.models.mil.head4type import LitHead4Type, LitSurvHead4Type
+from cellmil.models.mil.clam import LitCLAM, LitSurvCLAM
 
 # Model class registry for loading from checkpoint
 MODEL_CLASS_REGISTRY = {
     "LitAttentionDeepMIL": LitAttentionDeepMIL,
     "LitCLAM": LitCLAM,
     "LitHead4Type": LitHead4Type,
+    "LitSurvAttentionDeepMIL": LitSurvAttentionDeepMIL,
+    "LitSurvCLAM": LitSurvCLAM,
+    "LitSurvHead4Type": LitSurvHead4Type,
 }
 
 
@@ -137,7 +141,7 @@ class SHAPExplainer:
         model_storage: ModelStorage,
         dataset_folder: Path | str,
         data: pd.DataFrame,
-        fold_idx: Optional[int] = None,
+        fold_idx: Optional[Union[int, Literal["all"]]] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """
@@ -147,12 +151,70 @@ class SHAPExplainer:
             model_storage: ModelStorage instance containing model checkpoint, transforms, and configuration
             dataset_folder: Path to the folder containing all slide data
             data: DataFrame with slide metadata (must have 'FULL_PATH' column)
-            fold_idx: Optional fold index to use. If None, uses the final model. Must be in range [0, k_folds-1]
+            fold_idx: Optional fold index to use. If None, uses the final model.
+                     If -1 or "all", processes all folds and the final model.
+                     Otherwise, must be in range [0, k_folds-1]
             **kwargs: Additional arguments
 
         Returns:
-            Dictionary containing SHAP values, explanations, and metadata
+            Dictionary containing SHAP values, explanations, and metadata.
+            When fold_idx is -1 or "all", returns a dict with keys for each fold and 'final_model'
         """
+        # Handle "all" case - process all folds and final model
+        if fold_idx == -1 or fold_idx == "all":
+            logger.info("Processing all folds and final model")
+            all_results = {}
+            
+            # Get available folds
+            available_folds = model_storage.list_folds()
+            logger.info(f"Found {len(available_folds)} folds: {available_folds}")
+            
+            # Store original output path
+            original_output_path = self.config.output_path
+            
+            # Process each fold
+            for fold in available_folds:
+                logger.info(f"Processing fold {fold}...")
+                # Create fold-specific output directory
+                self.config.output_path = original_output_path / f"fold_{fold}"
+                try:
+                    fold_result = self.generate_explanation(
+                        model_storage=model_storage,
+                        dataset_folder=dataset_folder,
+                        data=data,
+                        fold_idx=fold,
+                        **kwargs
+                    )
+                    all_results[f"fold_{fold}"] = fold_result
+                    logger.info(f"Fold {fold} completed successfully")
+                except Exception as e:
+                    logger.error(f"Error processing fold {fold}: {e}")
+                    all_results[f"fold_{fold}"] = {"error": str(e)}
+            
+            # Process final model if it exists
+            if model_storage.has_final_model():
+                logger.info("Processing final model...")
+                self.config.output_path = original_output_path / "final_model"
+                try:
+                    final_result = self.generate_explanation(
+                        model_storage=model_storage,
+                        dataset_folder=dataset_folder,
+                        data=data,
+                        fold_idx=None,
+                        **kwargs
+                    )
+                    all_results["final_model"] = final_result
+                    logger.info("Final model completed successfully")
+                except Exception as e:
+                    logger.error(f"Error processing final model: {e}")
+                    all_results["final_model"] = {"error": str(e)}
+            
+            # Restore original output path
+            self.config.output_path = original_output_path
+            
+            logger.info(f"Completed processing all models. Total results: {len(all_results)}")
+            return all_results
+        
         logger.info("Starting SHAP explanation generation")
 
         # Load experiment metadata
@@ -207,7 +269,7 @@ class SHAPExplainer:
 
         model_class = MODEL_CLASS_REGISTRY[model_class_name]
         logger.info(f"Loading model from checkpoint: {checkpoint_path}")
-        model = model_class.load_from_checkpoint(str(checkpoint_path))
+        model = model_class.load_from_checkpoint(str(checkpoint_path), map_location=torch.device("cpu") if not torch.cuda.is_available() else None)
         model.eval()
 
         # Use the fold transforms for feature transformation
@@ -281,7 +343,7 @@ class SHAPExplainer:
 
     def _validate_model(self, model: Pl.LightningModule) -> None:
         """Validate that the model is supported."""
-        supported_models = (LitAttentionDeepMIL, LitHead4Type, LitCLAM)
+        supported_models = (LitAttentionDeepMIL, LitHead4Type, LitCLAM, LitSurvAttentionDeepMIL, LitSurvHead4Type, LitSurvCLAM)
         if not isinstance(model, supported_models):
             raise ValueError(
                 f"Unsupported model type: {model.__class__.__name__}. "

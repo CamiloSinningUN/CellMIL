@@ -157,6 +157,7 @@ class SHAPVisualizer:
             show=False,
             group_remaining_features=False,
         )
+        plt.xlabel("SHAP value (impact on attention score)")  # type: ignore
 
         # Save
         output_file = output_dir / "shap_summary_beeswarm.png"

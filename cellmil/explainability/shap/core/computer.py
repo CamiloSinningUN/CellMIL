@@ -12,9 +12,9 @@ from typing import Dict, Any, Optional, cast
 import shap  # type: ignore
 from cellmil.interfaces.SHAPExplainerConfig import SHAPExplainerType
 from cellmil.utils import logger
-from cellmil.models.mil.attentiondeepmil import LitAttentionDeepMIL, AttentionDeepMIL
-from cellmil.models.mil.head4type import LitHead4Type, Head4Type
-from cellmil.models.mil.clam import LitCLAM, CLAM_SB, CLAM_MB
+from cellmil.models.mil.attentiondeepmil import LitAttentionDeepMIL, AttentionDeepMIL, LitSurvAttentionDeepMIL
+from cellmil.models.mil.head4type import LitHead4Type, Head4Type, LitSurvHead4Type
+from cellmil.models.mil.clam import LitCLAM, CLAM_SB, CLAM_MB, LitSurvCLAM
 from .sampler import AttentionStratifiedSampler
 
 
@@ -55,7 +55,7 @@ class SHAPComputer:
 
     def compute_shap_values(
         self,
-        model: LitAttentionDeepMIL | LitHead4Type | LitCLAM,
+        model: LitAttentionDeepMIL | LitHead4Type | LitCLAM | LitSurvAttentionDeepMIL | LitSurvHead4Type | LitSurvCLAM,
         all_features: np.ndarray[Any, Any],
         device: torch.device,
         sampler: AttentionStratifiedSampler, 
@@ -411,12 +411,12 @@ class SHAPComputer:
         # Concatenate all batches
         return np.concatenate(all_attention, axis=0)
 
-    def _get_attention_module(self, lit_model: LitAttentionDeepMIL | LitHead4Type | LitCLAM) -> torch.nn.Module:
+    def _get_attention_module(self, lit_model: LitAttentionDeepMIL | LitHead4Type | LitCLAM | LitSurvAttentionDeepMIL | LitSurvHead4Type | LitSurvCLAM) -> torch.nn.Module:
         """
         Extract the attention module from a MIL model.
 
         Args:
-            model: The full MIL model (LitAttentionDeepMIL, LitHead4Type, or LitCLAM)
+            model: The full MIL model (standard or survival variant)
 
         Returns:
             The attention MLP module
@@ -433,14 +433,14 @@ class SHAPComputer:
         else:
             raise ValueError(f"Model {type(model)} does not have an 'attention' module")
 
-    def _get_feature_extractor(self, lit_model: LitAttentionDeepMIL | LitHead4Type | LitCLAM) -> torch.nn.Module:
+    def _get_feature_extractor(self, lit_model: LitAttentionDeepMIL | LitHead4Type | LitCLAM | LitSurvAttentionDeepMIL | LitSurvHead4Type | LitSurvCLAM) -> torch.nn.Module:
         """
         Extract the feature extractor from a MIL model.
 
         This is needed to transform raw features before feeding to attention module.
 
         Args:
-            model: The full MIL model
+            model: The full MIL model (standard or survival variant)
 
         Returns:
             The feature extractor module

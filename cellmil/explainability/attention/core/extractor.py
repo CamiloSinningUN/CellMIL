@@ -766,10 +766,14 @@ class AttentionExtractorFactory:
         """Create the appropriate attention extractor for the model type."""
 
         extractors: dict[str, type[BaseAttentionExtractor]] = {
-            "litclam": CLAMAttentionExtractor,  # Support Lightning model names
-            "litattentiondeepmil": AttentionDeepMILExtractor,  # Support Lightning model names
-            "litgraphmil": GraphMILAttentionExtractor,  # Support Lightning model names
+            "litclam": CLAMAttentionExtractor,
+            "litattentiondeepmil": AttentionDeepMILExtractor,
+            "litgraphmil": GraphMILAttentionExtractor,
             "lithead4type": Head4TypeAttentionExtractor,
+            "litsurvclam": CLAMAttentionExtractor,
+            "litsurvattentiondeepmil": AttentionDeepMILExtractor,
+            "litsurvgraphmil": GraphMILAttentionExtractor,
+            "litsurvhead4type": Head4TypeAttentionExtractor,
         }
 
         if model.__class__.__name__.lower() in extractors:

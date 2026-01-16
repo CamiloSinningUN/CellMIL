@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, Any, Optional, Union, Tuple, List
+from typing import Dict, Any, Optional, Union, Tuple, List, Literal
 from torch_geometric.data import Data  # type: ignore
 import torch
 import lightning as Pl
@@ -38,8 +38,10 @@ from cellmil.explainability.attention.visualizers.graph import (
     AttentionGraphVisualizer,
 )
 from cellmil.utils import logger
-from cellmil.models.mil import LitAttentionDeepMIL, LitCLAM, LitGraphMIL
-from cellmil.models.mil.head4type import LitHead4Type
+from cellmil.models.mil.graphmil import LitGraphMIL, LitSurvGraphMIL
+from cellmil.models.mil.clam import LitCLAM, LitSurvCLAM
+from cellmil.models.mil.attentiondeepmil import LitAttentionDeepMIL, LitSurvAttentionDeepMIL
+from cellmil.models.mil.head4type import LitHead4Type, LitSurvHead4Type
 
 # Model class registry for loading from checkpoint
 MODEL_CLASS_REGISTRY = {
@@ -47,6 +49,10 @@ MODEL_CLASS_REGISTRY = {
     "LitCLAM": LitCLAM,
     "LitGraphMIL": LitGraphMIL,
     "LitHead4Type": LitHead4Type,
+    "LitSurvAttentionDeepMIL": LitSurvAttentionDeepMIL,
+    "LitSurvCLAM": LitSurvCLAM,
+    "LitSurvGraphMIL": LitSurvGraphMIL,
+    "LitSurvHead4Type": LitSurvHead4Type,
 }
 
 
@@ -114,7 +120,7 @@ class AttentionExplainer:
         self,
         model_storage: ModelStorage,
         slide_path: Path | str,
-        fold_idx: Optional[int] = None,
+        fold_idx: Optional[Union[int, Literal["all"]]] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """
@@ -123,16 +129,72 @@ class AttentionExplainer:
         Args:
             model_storage: ModelStorage instance containing model checkpoint, transforms, and configuration
             slide_path: Path to the slide directory containing patches, cell_detection, features, etc.
-            fold_idx: Optional fold index to use. If None, uses the final model. Must be in range [0, k_folds-1]
+            fold_idx: Optional fold index to use. If None, uses the final model. 
+                     If -1 or "all", processes all folds and the final model.
+                     Otherwise, must be in range [0, k_folds-1]
             **kwargs: Additional method-specific arguments
 
         Returns:
-            Dictionary containing explanation results, file paths, and metadata
+            Dictionary containing explanation results, file paths, and metadata.
+            When fold_idx is -1 or "all", returns a dict with keys for each fold and 'final_model'
 
         Raises:
             ValueError: If model_type is not supported, required data is missing, or fold_idx is invalid
             FileNotFoundError: If required data files are missing
         """
+        # Handle "all" case - process all folds and final model
+        if fold_idx == -1 or fold_idx == "all":
+            logger.info("Processing all folds and final model")
+            all_results = {}
+            
+            # Get available folds
+            available_folds = model_storage.list_folds()
+            logger.info(f"Found {len(available_folds)} folds: {available_folds}")
+            
+            # Store original output path
+            original_output_path = self.config.output_path
+            
+            # Process each fold
+            for fold in available_folds:
+                logger.info(f"Processing fold {fold}...")
+                # Create fold-specific output directory
+                self.config.output_path = original_output_path / f"fold_{fold}"
+                try:
+                    fold_result = self.generate_explanation(
+                        model_storage=model_storage,
+                        slide_path=slide_path,
+                        fold_idx=fold,
+                        **kwargs
+                    )
+                    all_results[f"fold_{fold}"] = fold_result
+                    logger.info(f"Fold {fold} completed successfully")
+                except Exception as e:
+                    logger.error(f"Error processing fold {fold}: {e}")
+                    all_results[f"fold_{fold}"] = {"error": str(e)}
+            
+            # Process final model if it exists
+            if model_storage.has_final_model():
+                logger.info("Processing final model...")
+                self.config.output_path = original_output_path / "final_model"
+                try:
+                    final_result = self.generate_explanation(
+                        model_storage=model_storage,
+                        slide_path=slide_path,
+                        fold_idx=None,
+                        **kwargs
+                    )
+                    all_results["final_model"] = final_result
+                    logger.info("Final model completed successfully")
+                except Exception as e:
+                    logger.error(f"Error processing final model: {e}")
+                    all_results["final_model"] = {"error": str(e)}
+            
+            # Restore original output path
+            self.config.output_path = original_output_path
+            
+            logger.info(f"Completed processing all models. Total results: {len(all_results)}")
+            return all_results
+        
         logger.info("Starting attention explanation generation process")
 
         # Load experiment metadata
@@ -187,7 +249,7 @@ class AttentionExplainer:
 
         model_class = MODEL_CLASS_REGISTRY[model_class_name]
         logger.info(f"Loading model from checkpoint: {checkpoint_path}")
-        model = model_class.load_from_checkpoint(str(checkpoint_path))
+        model = model_class.load_from_checkpoint(str(checkpoint_path), map_location=torch.device("cpu") if not torch.cuda.is_available() else None)
         model.eval()
 
         # Use the fold transforms for feature transformation
