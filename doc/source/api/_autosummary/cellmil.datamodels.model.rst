@@ -1,4 +1,4 @@
-cellmil.datamodels.model
+﻿cellmil.datamodels.model
 ========================
 
 .. automodule:: cellmil.datamodels.model
@@ -8,6 +8,12 @@ cellmil.datamodels.model
    
 
    
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      convert_numpy_types
    
    
 

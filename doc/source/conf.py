@@ -54,12 +54,7 @@ autodoc_default_options: dict[str, Any] = {
     "show-inheritance": True,
     "special-members": "__init__",
 }
-autodoc_mock_imports = [
-    "torch_cluster",
-    "radiomics",
-    "SimpleITK",
-    "cucim"
-]
+autodoc_mock_imports = ["torch_cluster", "radiomics", "SimpleITK", "cucim"]
 
 
 # Autosummary settings
@@ -75,7 +70,7 @@ intersphinx_mapping = {
     "torch": ("https://pytorch.org/docs/stable/", None),
     "pandas": ("https://pandas.pydata.org/docs/", None),
     "torch_geometric": ("https://pytorch-geometric.readthedocs.io/en/latest/", None),
-    "scipy": ("https://docs.scipy.org/doc/scipy/reference/", None)
+    "scipy": ("https://docs.scipy.org/doc/scipy/reference/", None),
 }
 
 # -- Options for HTML output -------------------------------------------------
@@ -130,8 +125,13 @@ html_theme_options: dict[str, Any] = {
                     "title": "Dataset Creation",
                     "url": "pipeline/dataset_creation",
                     "summary": "Create datasets for MIL training.",
-                }
+                },
             ],
+        },
+        {
+            "title": "Explainability",
+            "url": "explainability",
+            "summary": "Attention heatmaps and SHAP feature importance for MIL models.",
         },
         {
             "title": "API Reference",

@@ -1,4 +1,4 @@
-cellmil.utils.wandb
+﻿cellmil.utils.wandb
 ===================
 
 .. automodule:: cellmil.utils.wandb
@@ -17,6 +17,7 @@ cellmil.utils.wandb
 
    .. autosummary::
    
+      ExperimentComponents
       WandbClient
    
    

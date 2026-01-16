@@ -41,4 +41,5 @@
    cellmil.interfaces.PatchExtractorConfig
    cellmil.interfaces.SHAPExplainerConfig
    cellmil.interfaces.StatsPrinterConfig
+   cellmil.interfaces.TableConfig
 

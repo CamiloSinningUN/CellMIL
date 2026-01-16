@@ -124,6 +124,7 @@ Documentation Contents
    quickstart
    cli
    pipeline/index
+   explainability
 
 .. toctree::
    :maxdepth: 2

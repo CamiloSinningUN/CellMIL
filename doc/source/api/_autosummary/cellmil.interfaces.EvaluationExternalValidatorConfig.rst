@@ -17,7 +17,9 @@ cellmil.interfaces.EvaluationExternalValidatorConfig
 
    .. autosummary::
    
+      AggregationMethod
       EvaluationExternalValidatorConfig
+      FinalModel
    
    
 

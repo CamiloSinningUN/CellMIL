@@ -1,7 +1,7 @@
-cellmil.cli.eval\_report
-========================
+cellmil.cli.eval\_external
+==========================
 
-.. automodule:: cellmil.cli.eval_report
+.. automodule:: cellmil.cli.eval_external
 
    
    
@@ -13,7 +13,7 @@ cellmil.cli.eval\_report
 
    .. autosummary::
    
-      eval_report
+      eval_external
       main
       setup_parser
    
