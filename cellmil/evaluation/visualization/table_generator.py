@@ -420,11 +420,23 @@ class TableGenerator:
                 latex_lines.append(
                     "    \\multicolumn{" + str(total_cols) + "}{|c|}{} \\\\"
                 )
-                latex_lines.append(
-                    "    \\multicolumn{"
-                    + str(total_cols)
-                    + "}{|c|}{\\textbf{Attention Entropy Maximization + Subsampling + L2 Regularization}} \\\\"
-                )
+                if num_metrics == 1:
+                    latex_lines.append(
+                        "    \\multicolumn{"
+                        + str(total_cols)
+                        + "}{|c|}{\\textbf{Attention Entropy Maximization +}} \\\\"
+                    )
+                    latex_lines.append(
+                        "    \\multicolumn{"
+                        + str(total_cols)
+                        + "}{|c|}{\\textbf{Subsampling + L2 Regularization}} \\\\"
+                    )
+                else:
+                    latex_lines.append(
+                        "    \\multicolumn{"
+                        + str(total_cols)
+                        + "}{|c|}{\\textbf{Attention Entropy Maximization + Subsampling + L2 Regularization}} \\\\"
+                    )
                 latex_lines.append("    \\midrule")
                 latex_lines.extend(
                     self._generate_table_rows(
