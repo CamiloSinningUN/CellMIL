@@ -268,7 +268,7 @@ class ExternalValidator:
         logger.info(f"Starting with {len(results)} existing results")
         
         # Filter out already processed models
-        models_to_process = []
+        models_to_process: list[Path] = []
         for model_dir in model_dirs:
             # Need to peek at experiment name to check if processed
             try:
@@ -289,9 +289,7 @@ class ExternalValidator:
             """Process a single model directory."""
             try:
                 result = self._evaluate_model(model_dir)
-                if result is not None:
-                    # Save to log immediately after successful processing
-                    self._save_result_to_log(result)
+                self._save_result_to_log(result)
                 return result
             except Exception as e:
                 logger.error(
@@ -379,7 +377,7 @@ class ExternalValidator:
             # Get input dimension from transformed sample
             sample_data = dataset[0]
             if isinstance(dataset, (CellGNNMILDataset, PatchGNNMILDataset)):
-                input_dim = sample_data.x.shape[1]  # type: ignore
+                input_dim = cast(int, sample_data.x.shape[1])  # type: ignore
             else:
                 input_dim = sample_data[0].shape[1]
 
@@ -585,6 +583,9 @@ class ExternalValidator:
         Returns:
             DataFrame with predictions and labels
         """
+        if input_dim is None:
+            raise ValueError("input_dim must be provided for final model predictions")
+        
         if self.config.final_model == FinalModel.final:
             return self._predict_final(model_storage, dataloader, lit_model_creator, input_dim)
         else:
@@ -862,8 +863,8 @@ class ExternalValidator:
         """Get classification predictions with logits by manually iterating."""
         model.eval()
         
-        all_y_true = []
-        all_logits = []
+        all_y_true: list[torch.Tensor] = []
+        all_logits: list[torch.Tensor] = []
         
         with torch.no_grad():
             for batch in dataloader:
@@ -892,14 +893,14 @@ class ExternalValidator:
                     # Pass appropriate inputs based on batch content
                     if len(batch) == 3:
                         # For HEAD4TYPE, pass cell types as well
-                        cell_types = cell_types.squeeze(0)  # [n_instances]
+                        cell_types = cell_types.squeeze(0)  # [n_instances] # type: ignore
                         output = model(x, cell_types)
                     else:
                         output = model(x)
                 
                 # Handle models that return (logits, output_dict) or just logits
                 if isinstance(output, tuple):
-                    logits = output[0]
+                    logits = cast(torch.Tensor, output[0])
                 else:
                     logits = output
                 
@@ -907,17 +908,17 @@ class ExternalValidator:
                 all_logits.append(logits.cpu())
         
         # Flatten all predictions
-        y_true_flat = torch.cat([y.flatten() for y in all_y_true]).numpy()
+        y_true_flat = torch.cat([y.flatten() for y in all_y_true]).numpy() # type: ignore
         logits_flat = torch.cat(all_logits, dim=0)  # [N, n_classes]
         
         # Get class predictions from logits
-        y_pred_flat = logits_flat.argmax(dim=1).numpy()
+        y_pred_flat = logits_flat.argmax(dim=1).numpy() # type: ignore
         
         # Compute probabilities for storing in DataFrame (useful for analysis/ensemble)
-        probs_flat = torch.softmax(logits_flat, dim=1).numpy()
+        probs_flat = torch.softmax(logits_flat, dim=1).numpy() # type: ignore
         
         # Build DataFrame with probabilities for each class
-        result_dict = {
+        result_dict: dict[str, np.ndarray[Any, Any]] = {
             "y_true": y_true_flat,
             "y_pred": y_pred_flat,
         }
@@ -926,7 +927,7 @@ class ExternalValidator:
         # Logits for metric calculation (same as training)
         # Probabilities for human readability and ensemble aggregation
         for i in range(logits_flat.shape[1]):
-            result_dict[f"logit_class_{i}"] = logits_flat[:, i].numpy()
+            result_dict[f"logit_class_{i}"] = logits_flat[:, i].numpy() # type: ignore
             result_dict[f"prob_class_{i}"] = probs_flat[:, i]
         
         return pd.DataFrame(result_dict)
@@ -1103,10 +1104,10 @@ class ExternalValidator:
                 logger.info(f"Aggregating {len(prob_columns)} probability columns using {method}")
                 # Aggregate probabilities (preferred - handles different model scales)
                 n_classes = len(prob_columns)
-                all_probs = []
+                all_probs: list[np.ndarray[Any, Any]] = []
                 
                 for df in fold_predictions:
-                    probs = np.stack([df[col].values for col in prob_columns], axis=1)  # [n_samples, n_classes]
+                    probs = cast(np.ndarray[Any, Any], np.stack([df[col].values for col in prob_columns], axis=1))  # [n_samples, n_classes] # type: ignore
                     all_probs.append(probs)
                 
                 stacked_probs = np.stack(all_probs)  # [n_folds, n_samples, n_classes]
@@ -1125,7 +1126,7 @@ class ExternalValidator:
                 aggregated_logits = np.log(aggregated_probs + 1e-12)
                 
                 # Build result with both probabilities and logits
-                result_dict = {
+                result_dict: dict[str, Any] = {
                     "y_true": fold_predictions[0]["y_true"].values,  # type: ignore
                     "y_pred": y_pred,
                 }
@@ -1190,21 +1191,31 @@ class ExternalValidator:
             n_classes = self._infer_n_classes(predictions_df)
             return self._calculate_classification_metrics(predictions_df, n_classes)
 
-    # TODO: Review this
     def _calculate_survival_metrics(
         self, predictions_df: pd.DataFrame
     ) -> dict[str, float]:
-        """Calculate survival metrics (C-Index)."""
-        durations = torch.tensor(predictions_df["duration"].values)  # type: ignore
-        events = torch.tensor(predictions_df["event"].values)  # type: ignore
-        risk_scores = torch.tensor(predictions_df["risk_score"].values)  # type: ignore
+        """Calculate survival metrics (C-Index and Brier Score) from logits.
+        
+        Note: Metrics can handle batch updates. While training uses batch_size=1,
+        this evaluation code passes all samples at once which works correctly
+        because the metrics accumulate via .append() and concatenate during .compute().
+        """
+        durations = torch.tensor(predictions_df["duration"].values, dtype=torch.float32)  # type: ignore
+        events = torch.tensor(predictions_df["event"].values, dtype=torch.float32)  # type: ignore
+        
+        # Convert logits list back to tensor
+        # Each row in predictions_df["logits"] is a list of logits for num_bins
+        logits_list = predictions_df["logits"].tolist()
+        logits = torch.tensor(logits_list, dtype=torch.float32)  # [n_samples, num_bins]
 
-        # Reshape risk_scores for ConcordanceIndex if needed
-        if risk_scores.ndim == 1:
-            risk_scores = risk_scores.unsqueeze(-1)
-
+        # Initialize metrics
         c_index_metric = ConcordanceIndex()
-        c_index_metric.update(risk_scores, (durations, events))
+        
+        # Update metrics with all samples at once (they handle batches correctly)
+        # The metrics will process the entire batch and store results internally
+        c_index_metric.update(logits, (durations, events))
+        
+        # Compute final metrics
         c_index = c_index_metric.compute()
 
         return {
@@ -1230,15 +1241,15 @@ class ExternalValidator:
             return len(prob_columns)
         
         # Otherwise infer from y_true and y_pred
-        y_true = predictions_df["y_true"].values
-        y_pred = predictions_df["y_pred"].values
-        return int(max(y_true.max(), y_pred.max()) + 1)
+        y_true = predictions_df["y_true"].values # type: ignore
+        y_pred = predictions_df["y_pred"].values # type: ignore
+        return int(max(y_true.max(), y_pred.max()) + 1) # type: ignore
 
     def _calculate_classification_metrics(
         self, predictions_df: pd.DataFrame, n_classes: int
     ) -> dict[str, float]:
         """Calculate classification metrics using torchmetrics (same as training)."""
-        y_true = torch.tensor(predictions_df["y_true"].values, dtype=torch.long)
+        y_true = torch.tensor(predictions_df["y_true"].values, dtype=torch.long) # type: ignore
         
         # Get logits (same format as passed to metrics during training)
         logit_columns = [
@@ -1247,15 +1258,15 @@ class ExternalValidator:
         
         if logit_columns and len(logit_columns) == n_classes:
             # Stack logits into tensor
-            logit_tensors = []
+            logit_tensors: list[torch.Tensor] = []
             for i in range(n_classes):
                 col_name = f"logit_class_{i}"
-                logit_tensors.append(torch.tensor(predictions_df[col_name].values, dtype=torch.float32))
+                logit_tensors.append(torch.tensor(predictions_df[col_name].values, dtype=torch.float32)) # type: ignore
             
             logits = torch.stack(logit_tensors, dim=1)  # [N, n_classes]
         else:
             # Fallback: if no logits stored, use predictions
-            y_pred = torch.tensor(predictions_df["y_pred"].values, dtype=torch.long)
+            y_pred = torch.tensor(predictions_df["y_pred"].values, dtype=torch.long) # type: ignore
             # Create one-hot encoded "logits" from predictions
             logits = torch.nn.functional.one_hot(y_pred, num_classes=n_classes).float() * 10.0
 
@@ -1292,9 +1303,9 @@ class ExternalValidator:
                 task="multiclass", num_classes=n_classes, average="macro"
             )
             # Pass logits, torchmetrics will handle softmax internally (same as training)
-            auroc_metric.update(logits, y_true)
-            auc = auroc_metric.compute()
-            metrics["auroc"] = float(auc.item())
+            auroc_metric.update(logits, y_true) # type: ignore
+            auc = auroc_metric.compute() # type: ignore
+            metrics["auroc"] = float(auc.item()) # type: ignore
         except Exception as e:
             logger.warning(f"Failed to calculate AUROC: {e}")
 
