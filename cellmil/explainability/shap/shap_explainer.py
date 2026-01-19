@@ -141,7 +141,7 @@ class SHAPExplainer:
         model_storage: ModelStorage,
         dataset_folder: Path | str,
         data: pd.DataFrame,
-        fold_idx: Optional[Union[int, Literal["all"]]] = None,
+        fold_idx: Optional[int] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """
@@ -152,69 +152,12 @@ class SHAPExplainer:
             dataset_folder: Path to the folder containing all slide data
             data: DataFrame with slide metadata (must have 'FULL_PATH' column)
             fold_idx: Optional fold index to use. If None, uses the final model.
-                     If -1 or "all", processes all folds and the final model.
-                     Otherwise, must be in range [0, k_folds-1]
+                     Must be in range [0, k_folds-1]
             **kwargs: Additional arguments
 
         Returns:
-            Dictionary containing SHAP values, explanations, and metadata.
-            When fold_idx is -1 or "all", returns a dict with keys for each fold and 'final_model'
+            Dictionary containing SHAP values, explanations, and metadata
         """
-        # Handle "all" case - process all folds and final model
-        if fold_idx == -1 or fold_idx == "all":
-            logger.info("Processing all folds and final model")
-            all_results = {}
-            
-            # Get available folds
-            available_folds = model_storage.list_folds()
-            logger.info(f"Found {len(available_folds)} folds: {available_folds}")
-            
-            # Store original output path
-            original_output_path = self.config.output_path
-            
-            # Process each fold
-            for fold in available_folds:
-                logger.info(f"Processing fold {fold}...")
-                # Create fold-specific output directory
-                self.config.output_path = original_output_path / f"fold_{fold}"
-                try:
-                    fold_result = self.generate_explanation(
-                        model_storage=model_storage,
-                        dataset_folder=dataset_folder,
-                        data=data,
-                        fold_idx=fold,
-                        **kwargs
-                    )
-                    all_results[f"fold_{fold}"] = fold_result
-                    logger.info(f"Fold {fold} completed successfully")
-                except Exception as e:
-                    logger.error(f"Error processing fold {fold}: {e}")
-                    all_results[f"fold_{fold}"] = {"error": str(e)}
-            
-            # Process final model if it exists
-            if model_storage.has_final_model():
-                logger.info("Processing final model...")
-                self.config.output_path = original_output_path / "final_model"
-                try:
-                    final_result = self.generate_explanation(
-                        model_storage=model_storage,
-                        dataset_folder=dataset_folder,
-                        data=data,
-                        fold_idx=None,
-                        **kwargs
-                    )
-                    all_results["final_model"] = final_result
-                    logger.info("Final model completed successfully")
-                except Exception as e:
-                    logger.error(f"Error processing final model: {e}")
-                    all_results["final_model"] = {"error": str(e)}
-            
-            # Restore original output path
-            self.config.output_path = original_output_path
-            
-            logger.info(f"Completed processing all models. Total results: {len(all_results)}")
-            return all_results
-        
         logger.info("Starting SHAP explanation generation")
 
         # Load experiment metadata
