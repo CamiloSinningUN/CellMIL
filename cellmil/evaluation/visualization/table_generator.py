@@ -365,17 +365,62 @@ class TableGenerator:
                     for m in config.model_mapping.keys()
                     if m in available_baseline_models
                 ]
-                latex_lines.extend(
-                    self._generate_table_rows(
-                        baseline_df,
-                        baseline_features,
-                        baseline_models,
-                        tasks,
-                        metrics,
-                        config,
-                        best_values,
-                    )
-                )
+
+                # Non-regularized baseline models
+                if config.include_non_regularized:
+                    baseline_df_no_reg = baseline_df[
+                        baseline_df[self.COLUMN_REG] == "*"
+                    ]
+                    if not baseline_df_no_reg.empty:
+                        latex_lines.extend(
+                            self._generate_table_rows(
+                                baseline_df_no_reg,
+                                baseline_features,
+                                baseline_models,
+                                tasks,
+                                metrics,
+                                config,
+                                best_values,
+                            )
+                        )
+
+                # Regularized baseline models
+                if config.include_regularized:
+                    baseline_df_reg = baseline_df[baseline_df[self.COLUMN_REG] != "*"]
+                    if not baseline_df_reg.empty:
+                        latex_lines.append(
+                            "    \\multicolumn{" + str(total_cols) + "}{|c|}{} \\\\"
+                        )
+                        if num_metrics == 1:
+                            latex_lines.append(
+                                "    \\multicolumn{"
+                                + str(total_cols)
+                                + "}{|c|}{\\textbf{Attention Entropy Maximization +}} \\\\"
+                            )
+                            latex_lines.append(
+                                "    \\multicolumn{"
+                                + str(total_cols)
+                                + "}{|c|}{\\textbf{Subsampling + L2 Regularization}} \\\\"
+                            )
+                        else:
+                            latex_lines.append(
+                                "    \\multicolumn{"
+                                + str(total_cols)
+                                + "}{|c|}{\\textbf{Attention Entropy Maximization + Subsampling + L2 Regularization}} \\\\"
+                            )
+                        latex_lines.append("    \\midrule")
+                        latex_lines.extend(
+                            self._generate_table_rows(
+                                baseline_df_reg,
+                                baseline_features,
+                                baseline_models,
+                                tasks,
+                                metrics,
+                                config,
+                                best_values,
+                            )
+                        )
+
                 latex_lines.append("    \\midrule")
             # Remove baseline features from main sections
             df = df[~df[self.COLUMN_FEATURES].isin(config.baseline_features)]  # type: ignore
