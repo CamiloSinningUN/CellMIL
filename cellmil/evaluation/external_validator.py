@@ -111,7 +111,7 @@ class ExternalValidator:
         # Check if we need to run all aggregation methods
         if self.config.final_model == FinalModel.ensemble and self.config.aggregation_method == AggregationMethod.everything:
             logger.info("Running validation with all aggregation methods...")
-            methods = [AggregationMethod.majority, AggregationMethod.median]
+            methods = [AggregationMethod.median]
             
             for method in methods:
                 logger.info(f"\n{'='*60}")
@@ -583,10 +583,9 @@ class ExternalValidator:
         Returns:
             DataFrame with predictions and labels
         """
-        if input_dim is None:
-            raise ValueError("input_dim must be provided for final model predictions")
-        
         if self.config.final_model == FinalModel.final:
+            if input_dim is None:
+                raise ValueError("input_dim must be provided for final model predictions")
             return self._predict_final(model_storage, dataloader, lit_model_creator, input_dim)
         else:
             return self._predict_ensemble(

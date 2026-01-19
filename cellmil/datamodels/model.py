@@ -189,9 +189,15 @@ class ModelStorage:
             transforms.save(transforms_dir)
 
         if label_transforms is not None:
-            # LabelTransformPipeline or LabelTransform - saves to directory/file
-            label_transforms_dir = fold_dir / "label_transforms"
-            label_transforms.save(label_transforms_dir)
+            # For single LabelTransform, save as JSON file
+            # For LabelTransformPipeline, save as directory structure
+            if isinstance(label_transforms, LabelTransformPipeline):
+                label_transforms_dir = fold_dir / "label_transforms"
+                label_transforms.save(label_transforms_dir)
+            else:
+                # Single transform - save as JSON file
+                label_transforms_file = fold_dir / "label_transforms.json"
+                label_transforms.save(label_transforms_file)
 
         # Save metadata
         with open(fold_dir / "metadata.json", "w") as f:
@@ -237,8 +243,15 @@ class ModelStorage:
             transforms.save(transforms_dir)
 
         if label_transforms is not None:
-            label_transforms_dir = final_dir / "label_transforms"
-            label_transforms.save(label_transforms_dir)
+            # For single LabelTransform, save as JSON file
+            # For LabelTransformPipeline, save as directory structure
+            if isinstance(label_transforms, LabelTransformPipeline):
+                label_transforms_dir = final_dir / "label_transforms"
+                label_transforms.save(label_transforms_dir)
+            else:
+                # Single transform - save as JSON file
+                label_transforms_file = final_dir / "label_transforms.json"
+                label_transforms.save(label_transforms_file)
 
         metadata: dict[str, Any] = {
             "avg_epochs": avg_epochs,
@@ -295,13 +308,44 @@ class ModelStorage:
             except Exception as e:
                 logger.warning(f"Failed to load transforms from JSON: {e}")
 
-        # Try loading label transforms from JSON (native format)
+        # Try loading label transforms - check for both pipeline (directory) and single transform (file)
         label_transforms_dir = fold_dir / "label_transforms"
-        if label_transforms_dir.exists():
+        label_transforms_file = fold_dir / "label_transforms.json"
+        
+        if label_transforms_dir.exists() and label_transforms_dir.is_dir():
+            # Pipeline format (directory)
             try:
                 label_transforms = LabelTransformPipeline.load(label_transforms_dir)
             except Exception as e:
-                logger.warning(f"Failed to load label transforms from JSON: {e}")
+                logger.warning(f"Failed to load label transforms pipeline from directory: {e}")
+        elif label_transforms_file.exists():
+            # Single transform format (JSON file)
+            try:
+                from .transforms import TimeDiscretizerTransform
+                with open(label_transforms_file, 'r') as f:
+                    import json
+                    config = json.load(f)
+                    transform_class_name = config.pop('transform_class', None)
+                    if transform_class_name == 'TimeDiscretizerTransform':
+                        label_transforms = TimeDiscretizerTransform.from_config(config)
+                    else:
+                        logger.warning(f"Unknown transform class: {transform_class_name}")
+            except Exception as e:
+                logger.warning(f"Failed to load label transforms from JSON file: {e}")
+        elif (fold_dir / "label_transforms").exists() and (fold_dir / "label_transforms").is_file():
+            # Legacy format: single transform saved as file without .json extension
+            try:
+                from .transforms import TimeDiscretizerTransform
+                with open(fold_dir / "label_transforms", 'r') as f:
+                    import json
+                    config = json.load(f)
+                    transform_class_name = config.pop('transform_class', None)
+                    if transform_class_name == 'TimeDiscretizerTransform':
+                        label_transforms = TimeDiscretizerTransform.from_config(config)
+                    else:
+                        logger.warning(f"Unknown transform class: {transform_class_name}")
+            except Exception as e:
+                logger.warning(f"Failed to load legacy label transforms: {e}")
 
         return transforms, label_transforms
 
@@ -321,13 +365,44 @@ class ModelStorage:
             except Exception as e:
                 logger.warning(f"Failed to load transforms from JSON: {e}")
 
-        # Try loading label transforms from JSON (native format)
+        # Try loading label transforms - check for both pipeline (directory) and single transform (file)
         label_transforms_dir = final_dir / "label_transforms"
-        if label_transforms_dir.exists():
+        label_transforms_file = final_dir / "label_transforms.json"
+        
+        if label_transforms_dir.exists() and label_transforms_dir.is_dir():
+            # Pipeline format (directory)
             try:
                 label_transforms = LabelTransformPipeline.load(label_transforms_dir)
             except Exception as e:
-                logger.warning(f"Failed to load label transforms from JSON: {e}")
+                logger.warning(f"Failed to load label transforms pipeline from directory: {e}")
+        elif label_transforms_file.exists():
+            # Single transform format (JSON file)
+            try:
+                from .transforms import TimeDiscretizerTransform
+                with open(label_transforms_file, 'r') as f:
+                    import json
+                    config = json.load(f)
+                    transform_class_name = config.pop('transform_class', None)
+                    if transform_class_name == 'TimeDiscretizerTransform':
+                        label_transforms = TimeDiscretizerTransform.from_config(config)
+                    else:
+                        logger.warning(f"Unknown transform class: {transform_class_name}")
+            except Exception as e:
+                logger.warning(f"Failed to load label transforms from JSON file: {e}")
+        elif (final_dir / "label_transforms").exists() and (final_dir / "label_transforms").is_file():
+            # Legacy format: single transform saved as file without .json extension
+            try:
+                from .transforms import TimeDiscretizerTransform
+                with open(final_dir / "label_transforms", 'r') as f:
+                    import json
+                    config = json.load(f)
+                    transform_class_name = config.pop('transform_class', None)
+                    if transform_class_name == 'TimeDiscretizerTransform':
+                        label_transforms = TimeDiscretizerTransform.from_config(config)
+                    else:
+                        logger.warning(f"Unknown transform class: {transform_class_name}")
+            except Exception as e:
+                logger.warning(f"Failed to load legacy label transforms: {e}")
 
         return transforms, label_transforms
 
