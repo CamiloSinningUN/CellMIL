@@ -47,7 +47,7 @@ class WandbClient:
         self.tasks = tasks
 
         try:
-            self.api = wandb.Api(timeout=100)
+            self.api = wandb.Api(timeout=10000)
         except Exception as e:
             raise RuntimeError(f"Failed to initialize W&B API: {e}") from e
 
@@ -154,41 +154,41 @@ class WandbClient:
             )
 
         # Check FINAL runs for DataLoader worker errors
-        logger.info("Checking FINAL runs for DataLoader worker errors")
-        experiments_with_errors: set[str] = set()
+        # logger.info("Checking FINAL runs for DataLoader worker errors")
+        # experiments_with_errors: set[str] = set()
 
-        for exp_id, exp_runs in experiment_counts.items():
-            # Skip if already marked as incorrect
-            if exp_id in incorrect_experiments:
-                continue
+        # for exp_id, exp_runs in experiment_counts.items():
+        #     # Skip if already marked as incorrect
+        #     if exp_id in incorrect_experiments:
+        #         continue
 
-            # Find the FINAL run
-            final_runs = [run for run in exp_runs if run.name.startswith("FINAL_")]
-            if not final_runs:
-                continue
+        #     # Find the FINAL run
+        #     final_runs = [run for run in exp_runs if run.name.startswith("FINAL_")]
+        #     if not final_runs:
+        #         continue
 
-            final_run = final_runs[0]
-            if self._has_dataloader_error(final_run, exp_id):
-                experiments_with_errors.add(exp_id)
-                logger.warning(
-                    f"  - {exp_id}: DataLoader worker error detected in FINAL run"
-                )
+        #     final_run = final_runs[0]
+        #     if self._has_dataloader_error(final_run, exp_id):
+        #         experiments_with_errors.add(exp_id)
+        #         logger.warning(
+        #             f"  - {exp_id}: DataLoader worker error detected in FINAL run"
+        #         )
 
-        if experiments_with_errors:
-            logger.warning(
-                f"Found {len(experiments_with_errors)} experiment(s) with DataLoader worker errors in FINAL runs"
-            )
-            # Remove all runs from experiments with errors
-            new_runs = [
-                run
-                for run in new_runs
-                if self.get_experiment_id(run) not in experiments_with_errors
-            ]
-            logger.info(
-                f"Removed runs with DataLoader errors. New total runs: {len(new_runs)}"
-            )
-        else:
-            logger.info("No DataLoader worker errors found in FINAL runs")
+        # if experiments_with_errors:
+        #     logger.warning(
+        #         f"Found {len(experiments_with_errors)} experiment(s) with DataLoader worker errors in FINAL runs"
+        #     )
+        #     # Remove all runs from experiments with errors
+        #     new_runs = [
+        #         run
+        #         for run in new_runs
+        #         if self.get_experiment_id(run) not in experiments_with_errors
+        #     ]
+        #     logger.info(
+        #         f"Removed runs with DataLoader errors. New total runs: {len(new_runs)}"
+        #     )
+        # else:
+        #     logger.info("No DataLoader worker errors found in FINAL runs")
 
         # Now filter out FINAL_ runs after verifying the count
         logger.info(f"Filtering out FINAL_ runs with total runs {len(new_runs)}")

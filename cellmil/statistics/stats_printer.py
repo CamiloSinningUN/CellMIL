@@ -30,15 +30,7 @@ class StatsPrinter:
         self.config = config
         wandb.login()  # Ensure wandb is logged in
 
-        self.tasks: list[str] = [
-            "ADENOvsSQUA",
-            "PDL1(BIN)",
-            "DCR",
-            "OS6",
-            "OS24",
-            "ORR",
-            "CBR",
-        ]
+        self.tasks: list[str] = ["ADENOvsSQUA", "PDL1", "DCR", "OS6", "OS24"]
 
         # TODO: Make this configurable
         self.base_run_config: dict[str, Any] = {
@@ -62,22 +54,19 @@ class StatsPrinter:
 
         self.df = pd.DataFrame()
         self.wandb_client = WandbClient(
-            team=self.config.team,
-            projects=self.config.projects,
-            tasks=self.tasks
+            team=self.config.team, projects=self.config.projects, tasks=self.tasks
         )
         self.runs = self.wandb_client.get_runs(preprocess=True)
         logger.info(f"Total accessible runs after preprocessing: {len(self.runs)}")
 
         self._load_runs_into_df()
-        
+
         if self.df.empty:
             raise RuntimeError(
                 "DataFrame is empty after loading runs. Check logs for errors during run processing."
             )
-            
-        print(self.df.head())
 
+        print(self.df.head())
 
     def _load_runs_into_df(self):
         def process_run(run: Any) -> dict[str, str | int | None | float]:
@@ -88,7 +77,10 @@ class StatsPrinter:
                 self.COLUMN_EXPERIMENT_ID: experiment_id,
                 self.COLUMN_TASK: self.wandb_client.get_task(experiment_id),
                 **self._get_run_config(experiment_id),
-                **{metric: self.wandb_client.get_metric(run, metric) for metric in self.METRICS}
+                **{
+                    metric: self.wandb_client.get_metric(run, metric)
+                    for metric in self.METRICS
+                },
             }
             return run_data
 
@@ -115,8 +107,6 @@ class StatsPrinter:
 
         self.df = pd.DataFrame(data)
         logger.info(f"Loaded {len(self.df)} runs into DataFrame.")
-
-    
 
     def _get_run_config(self, experiment_id: str) -> dict[str, int]:
         """
@@ -259,7 +249,9 @@ class StatsPrinter:
 
             # Create formula with random intercept
             fixed_effects_formula = " + ".join(available_configs)
-            formula = f"{metric} ~ {fixed_effects_formula} + (1|{self.COLUMN_EXPERIMENT_ID})"
+            formula = (
+                f"{metric} ~ {fixed_effects_formula} + (1|{self.COLUMN_EXPERIMENT_ID})"
+            )
 
             try:
                 logger.info(f"Fitting Bayesian model for {task}: {formula}")
@@ -311,11 +303,11 @@ class StatsPrinter:
         """
         logger.info("Starting statistical analysis (Frequentist + Bayesian)...")
 
-        # Get all configuration columns
+        # Get all configuration columns (exclude metadata and ALL metrics)
         config_columns = [
             col
             for col in self.df.columns
-            if col not in [self.COLUMN_EXPERIMENT_ID, self.COLUMN_TASK, metric]
+            if col not in [self.COLUMN_EXPERIMENT_ID, self.COLUMN_TASK] + self.METRICS
         ]
 
         logger.info(f"Configuration columns: {config_columns}")
@@ -323,6 +315,7 @@ class StatsPrinter:
         # Fit both types of models
         frequentist_results = self._fit_frequentist_models(metric, config_columns)
         bayesian_results = self._fit_bayesian_models(metric, config_columns)
+        # bayesian_results = {}  # Temporarily disable Bayesian fitting for faster testing
 
         # Generate the report
         markdown_content = self._generate_report(
@@ -460,15 +453,15 @@ class StatsPrinter:
                 markdown_lines.append(
                     f"- **Total experiments:** {result_for_summary['n_experiments']}"
                 )
-                markdown_lines.append(
-                    f"- **Mean F1 score:** {result_for_summary['mean_f1']:.4f} ± {result_for_summary['std_f1']:.4f}"
-                )
+                # markdown_lines.append(
+                #     # f"- **Mean F1 score:** {result_for_summary['mean_f1']:.4f} ± {result_for_summary['std_f1']:.4f}"
+                # )
                 markdown_lines.append("")
 
             # Frequentist results
             if "model" in freq_result:
                 markdown_lines.extend(
-                    self._format_frequentist_results(task, freq_result)
+                    self._format_frequentist_results(metric, freq_result)
                 )
             elif "error" in freq_result:
                 markdown_lines.append("### Frequentist Analysis Error")
