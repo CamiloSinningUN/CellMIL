@@ -1463,13 +1463,13 @@ class ExternalValidator:
                 "CBR": "CBR",
             },
             "support_mapping": {
-                "DCR": 343,
-                "ORR": 343,
-                "CBR": 343,
-                "OS6": 339,
-                "OS24": 295,
-                "PDL1": 306,
-                "ADENOvsSQUA": 280,
+                "DCR": 152,
+                "ORR": 152,
+                "CBR": 152,
+                "OS6": 148,
+                "OS24": 118,
+                "PDL1": 141,
+                "ADENOvsSQUA": 152,
             },
         }
 
@@ -1481,8 +1481,8 @@ class ExternalValidator:
                 "PFS": "PFS",
             },
             "support_mapping": {
-                "OS": 343,
-                "PFS": 343,
+                "OS": 152,
+                "PFS": 152,
             },
         }
 
