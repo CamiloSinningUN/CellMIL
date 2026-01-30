@@ -126,6 +126,11 @@ html_theme_options: dict[str, Any] = {
                     "url": "pipeline/dataset_creation",
                     "summary": "Create datasets for MIL training.",
                 },
+                {
+                    "title": "Feature Visualization",
+                    "url": "pipeline/feature_visualization",
+                    "summary": "Visualize and analyze extracted features with statistical descriptors.",
+                },
             ],
         },
         {

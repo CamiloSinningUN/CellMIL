@@ -13,6 +13,7 @@ This section provides detailed documentation for all tools in the package. Each 
    graph_creation
    feature_extraction
    dataset_creation
+   feature_visualization
    mil_training/index
 
 Overview
@@ -30,7 +31,8 @@ The typical workflow follows this sequence:
 3. :doc:`graph_creation` → Create spatial graphs from segmented cells
 4. :doc:`feature_extraction` → Compute quantitative features from cells
 5. :doc:`dataset_creation` → Process multiple slides into training datasets
-6. :doc:`mil_training/index` → Train Multiple Instance Learning models
+6. :doc:`feature_visualization` → Visualize and analyze extracted features
+7. :doc:`mil_training/index` → Train Multiple Instance Learning models
 
 Quick Reference
 ==============
@@ -53,7 +55,10 @@ Basic CLI Commands
    feature_extraction --extractor pyradiomics --wsi_path ./data/slide.svs --patched_slide_path ./results/slide --segmentation_model cellvit
 
    # Create a dataset from multiple slides
-   create_dataset --excel_path ./data/metadata.xlsx --output_path ./datasets --gpu 0 --segmentation_models cellvit hovernet --extractors morphometrics pyradiomics
+   create_dataset --excel_path ./data/metadata.xlsx --output_path ./results --gpu 0 --segmentation_models cellvit hovernet --extractors morphometrics pyradiomics
+
+   # Visualize extracted features
+   vis_features --dataset ./results
 
 Common Parameters
 -----------------
@@ -90,6 +95,13 @@ These tools handle the initial processing of whole slide images:
 - :doc:`cell_segmentation` - Identify individual cell instances
 - :doc:`graph_creation` - Create spatial graphs from segmented cells
 - :doc:`feature_extraction` - Compute quantitative cell features
+
+Analysis and Visualization Tools
+---------------------------------
+
+These tools help understand and analyze your data:
+
+- :doc:`feature_visualization` - Interactive exploration of extracted features
 
 Machine Learning Tools
 ---------------------
