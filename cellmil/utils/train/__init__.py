@@ -3,6 +3,7 @@ from .dataset import split_dataset
 from .losses import FocalLoss
 import pandas as pd
 import lightning as Pl
+import numpy as np
 from typing import Callable
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -36,7 +37,7 @@ def get_extractors_from_name(name: str):
         raise ValueError(f"Unknown extractor configuration: {name}")
     return extractors
 
-def preprocess_df(df: pd.DataFrame, task: str) -> pd.DataFrame:
+def preprocess_df(df: pd.DataFrame, task: str, subsample_fraction: float = 1.0, random_seed: int = 42) -> pd.DataFrame:
     if task == "ADENOvsSQUA":
         df = df[df['HISTOLOGY'].isin(['adenocarcinoma', 'squamous'])] # type: ignore
         df[task] = (df['HISTOLOGY'] == 'adenocarcinoma').astype(int)
@@ -67,6 +68,33 @@ def preprocess_df(df: pd.DataFrame, task: str) -> pd.DataFrame:
     
     if task not in ["OS", "PFS"]: 
         df = df.dropna(subset=[task]) # type: ignore
+    
+    # Perform stratified subsampling if fraction < 1.0
+    if subsample_fraction < 1.0:
+        np.random.seed(random_seed)
+        
+        # Determine stratification column
+        if task in ["OS", "PFS"]:
+            stratify_col = 'event'
+        else:
+            stratify_col = task
+        
+        # Stratified sampling: sample from each class proportionally
+        n_samples = int(len(df) * subsample_fraction)
+        sampled_dfs = []
+        
+        for label_value in df[stratify_col].unique():
+            label_df = df[df[stratify_col] == label_value]
+            # Calculate number of samples for this label proportionally
+            label_n_samples = int(len(label_df) * subsample_fraction)
+            if label_n_samples > 0:
+                sampled_label_df = label_df.sample(n=label_n_samples, random_state=random_seed)
+                sampled_dfs.append(sampled_label_df)
+        
+        df = pd.concat(sampled_dfs, ignore_index=True)
+        # Shuffle the final dataframe
+        df = df.sample(frac=1, random_state=random_seed).reset_index(drop=True)
+    
     return df
 
 def get_lit_model_creator(model: str, task: str, n_bins: int, feature: str, df: pd.DataFrame, regularization: bool) -> Callable[[int, bool], Pl.LightningModule]:
