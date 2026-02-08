@@ -470,6 +470,7 @@ class ExternalValidator:
     def _parse_experiment_name(self, name: str) -> dict[str, str]:
         """
         Parse experiment name in format: TASK+FEATURES+MODEL+REG+STRA
+        where FEATURES can optionally include sample fraction like ALL(0.25)
 
         Args:
             name: Experiment name
@@ -488,6 +489,27 @@ class ExternalValidator:
             "reg": parts[3],
             "stra": parts[4],
         }
+
+    def _extract_base_feature_name(self, feature_name: str) -> str:
+        """
+        Extract base feature name from strings that may include sample fractions.
+        
+        Examples:
+            ALL(0.25) -> ALL
+            RESNET(0.5) -> RESNET
+            GIGAPATH -> GIGAPATH
+        
+        Args:
+            feature_name: Feature name potentially with sample fraction suffix
+            
+        Returns:
+            Base feature name without sample fraction
+        """
+        # Check if feature name contains parentheses
+        if "(" in feature_name:
+            # Extract everything before the opening parenthesis
+            return feature_name.split("(")[0]
+        return feature_name
 
     def _create_dataset(
         self, task: str, features: str, model: str, model_storage: ModelStorage
@@ -509,8 +531,9 @@ class ExternalValidator:
         df = self._load_metadata_df()
         df = preprocess_df(df, task)
 
-        # Get extractors
-        extractors = get_extractors_from_name(features)
+        # Get extractors - strip sample fraction suffix if present
+        base_features = self._extract_base_feature_name(features)
+        extractors = get_extractors_from_name(base_features)
 
         # Load fitted transforms from model storage
         # Use final model transforms if available, otherwise use fold_0
@@ -563,8 +586,9 @@ class ExternalValidator:
         df = self._load_metadata_df()
         df = preprocess_df(df, task)
 
-        # Get extractors
-        extractors = get_extractors_from_name(features)
+        # Get extractors - strip sample fraction suffix if present
+        base_features = self._extract_base_feature_name(features)
+        extractors = get_extractors_from_name(base_features)
 
         # Load fitted transforms from specific fold
         transforms, label_transforms = model_storage.load_fold_transforms(fold_idx)

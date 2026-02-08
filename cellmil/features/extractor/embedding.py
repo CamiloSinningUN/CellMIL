@@ -10,6 +10,7 @@ from torchvision.models import resnet50  # type: ignore
 from cellmil.interfaces.FeatureExtractorConfig import ExtractorType
 from cellmil.utils import logger
 from typing import Any
+from transformers import AutoModel
 
 class EmbeddingExtractor:
     def __init__(self, extractor_name: ExtractorType):
@@ -21,6 +22,8 @@ class EmbeddingExtractor:
             self.extractor = GigapathExtractor()
         elif self.extractor_name == ExtractorType.uni:
             self.extractor = UNIExtractor()
+        elif self.extractor_name == ExtractorType.titan:
+            self.extractor = TITANExtractor()
         else:
             raise ValueError(f"Unknown extractor type: {self.extractor_name}")
 
@@ -235,6 +238,65 @@ class UNIExtractor:
         except Exception as e:
             logger.error(f"Error in UNI feature extraction: {e}")
             raise RuntimeError("Error in UNI feature extraction.")
+        
+class TITANExtractor:
+    """TITAN feature extractor using CONCH v1.5 for patch-level embeddings.
+    
+    Note: Requires huggingface_hub login with access token before first use.
+    TITAN uses CONCH v1.5 for patch-level feature extraction at 512x512 pixels.
+    """
+
+    def __init__(self):
+
+        # Check if GPU is available
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        # Load TITAN model to get CONCH v1.5
+        logger.info("Loading TITAN model and CONCH v1.5 encoder...")
+        try:
+            titan = AutoModel.from_pretrained(
+                'MahmoodLab/TITAN', 
+                trust_remote_code=True
+            )
+            # Get CONCH v1.5 model and preprocessing transform
+            self.model, self.transform = titan.return_conch()
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to load TITAN/CONCH v1.5. Make sure you have access and are logged in to HuggingFace: {e}"
+            )
+
+        # Move model to GPU and set to eval mode
+        self.model = self.model.to(self.device)
+        self.model.eval()
+
+        logger.info("TITAN/CONCH v1.5 model loaded successfully")
+
+    def extract_features(self, batch: torch.Tensor) -> torch.Tensor:
+        try:
+            # Normalize input to [0, 1] range if needed
+            if batch.max() > 1.0:
+                batch = batch.float() / 255.0
+
+            # Apply CONCH v1.5 preprocessing transform
+            _batch = cast(torch.Tensor, self.transform(batch))
+
+            with torch.no_grad():
+                # Move input tensor to GPU
+                _batch = _batch.to(self.device)
+
+                # Extract patch-level features using CONCH v1.5
+                # Use encode_image without projection for MIL tasks
+                features = self.model.encode_image(_batch, proj_contrast=False, normalize=False)
+
+                # Move back to CPU for further processing
+                features = features.cpu()
+
+            return features
+
+        except Exception as e:
+            logger.error(f"Error in TITAN/CONCH v1.5 feature extraction: {e}")
+            raise RuntimeError("Error in TITAN/CONCH v1.5 feature extraction.")
+        
 class VirchowExtractor:
     """Virchow feature extractor using a custom model from timm."""
 
