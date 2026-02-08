@@ -98,6 +98,9 @@ class TableGenerator:
     def _filter_dataframe(self, config: TableConfig) -> pd.DataFrame:
         """Filter DataFrame based on table configuration."""
         df = self.df.copy()
+        
+        # Exclude partial models
+        df = df[~df[self.COLUMN_FEATURES].str.contains(r"\(", regex=True, na=False)]  # type: ignore
 
         # Filter by tasks
         if config.tasks is not None:
