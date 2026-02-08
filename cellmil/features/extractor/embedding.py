@@ -22,8 +22,6 @@ class EmbeddingExtractor:
             self.extractor = GigapathExtractor()
         elif self.extractor_name == ExtractorType.uni:
             self.extractor = UNIExtractor()
-        elif self.extractor_name == ExtractorType.titan:
-            self.extractor = TITANExtractor()
         else:
             raise ValueError(f"Unknown extractor type: {self.extractor_name}")
 

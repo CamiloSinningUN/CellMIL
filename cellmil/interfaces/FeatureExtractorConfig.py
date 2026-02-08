@@ -16,7 +16,6 @@ class ExtractorType(str, Enum):
     resnet50 = "resnet50"
     gigapath = "gigapath"
     uni = "uni"
-    titan = "titan"
     
     @classmethod
     def values(cls):
@@ -29,7 +28,7 @@ class FeatureExtractionType(str, Enum):
     """Type for feature extraction methods."""
     Morphological = ["pyradiomics_hed", "morphometrics", "pyradiomics_gray", "pyradiomics_hue"]
     Topological = ["connectivity", "structure", "geometric"]
-    Embedding = ["resnet50", "gigapath", "uni", "titan"]
+    Embedding = ["resnet50", "gigapath", "uni"]
     
     def __contains__(self, item: str) -> bool:
         """Check if the item is in the feature extraction type."""
