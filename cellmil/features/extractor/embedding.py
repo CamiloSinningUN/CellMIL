@@ -177,7 +177,6 @@ class UNIExtractor:
 
         # Model configuration for UNI2-h
         timm_kwargs: dict[str, Any] = {
-            "model_name": "vit_giant_patch14_224",
             "img_size": 224,
             "patch_size": 14,
             "depth": 24,
