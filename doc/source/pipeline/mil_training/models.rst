@@ -124,7 +124,7 @@ Head4Type
 
 Uses separate attention heads for each cell type (neoplastic, inflammatory, connective, etc.). Each cell type gets its own attention mechanism.
 
-Don't use if Using deep learning features (ResNet50, GigaPath) or cell segmentation model doesn't provide cell types.
+Don't use if Using deep learning features (ResNet50, GigaPath, UNI) or cell segmentation model doesn't provide cell types.
 
 **Classification**
 

@@ -147,6 +147,13 @@ Prov-Gigapath is a foundational model specifically designed for analyzing gigapi
 
 .. [#gigapath] Xu, H., Usuyama, N., Bagga, J. et al. A whole-slide foundation model for digital pathology from real-world data. Nature 630, 181–188 (2024). https://doi.org/10.1038/s41586-024-07441-w
 
+UNI [#uni]_
+-------------------
+
+UNI is a general-purpose self-supervised vision transformer model pretrained on over 100 million images from diverse tissue types and organs. It provides robust embedding features suitable for pathology image analysis. **(1536 features)**
+
+.. [#uni] Chen, R.J., Ding, T., Lu, M.Y. et al. Towards a general-purpose foundation model for computational pathology. Nat Med 30, 850–862 (2024).
+
 CLI Usage
 =========
 
@@ -160,7 +167,7 @@ Basic Command
 Required Arguments
 ------------------
 
-.. option:: --extractor {pyradiomics_gray, pyradiomics_hue, pyradiomics_hed, morphometrics, connectivity, geometric, resnet50, gigapath}
+.. option:: --extractor {pyradiomics_gray, pyradiomics_hue, pyradiomics_hed, morphometrics, connectivity, geometric, resnet50, gigapath, uni}
 
    Feature extraction method to use.
 

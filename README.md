@@ -222,6 +222,7 @@ feature_extraction  --extractor resnet50 --patched_slide_path ./results/C3L-0000
 Extractor options:
 1. resnet50
 2. gigapath
+3. uni
 
 ### Feature visualization
 
@@ -395,6 +396,18 @@ This project builds upon several key research papers and tools:
 - **PathML**: Building tools for machine learning and artificial intelligence in cancer research: best practices and a case study   with the PathML toolkit for computational pathology  
   Rosenthal, J. et al., Molecular Cancer Research, 2022  
   [DOI: 10.1158/1541-7786.MCR-21-0665](https://doi.org/10.1158/1541-7786.MCR-21-0665)
+
+### Foundational Models
+
+- **ResNet**: Deep Residual Learning for Image Recognition  
+  He, Kaiming et al., Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition, 2016  
+  [DOI: 10.1109/CVPR.2016.90](https://doi.org/10.1109/CVPR.2016.90)
+
+- **GigaPath**: A whole-slide foundation model for digital pathology from real-world data  
+  Xu, Hanwen et al., Nature, 2024
+
+- **UNI**: Towards a General-Purpose Foundation Model for Computational Pathology  
+  Chen, Richard J et al., Nature Medicine, 2024  
 
 ### Others
 

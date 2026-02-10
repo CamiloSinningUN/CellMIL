@@ -98,7 +98,7 @@ Extract morphological and radiomics features from segmented cells. For complete 
        --segmentation_model cellvit \
        --graph_method knn
 
-**Available extractors**: ``pyradiomics_gray``, ``pyradiomics_hed``, ``pyradiomics_hue``, ``morphometrics``, ``connectivity``, ``geometric``, ``resnet50``, ``gigapath``
+**Available extractors**: ``pyradiomics_gray``, ``pyradiomics_hed``, ``pyradiomics_hue``, ``morphometrics``, ``connectivity``, ``geometric``, ``resnet50``, ``gigapath``, ``uni``
 
 Dataset Creation
 ===============

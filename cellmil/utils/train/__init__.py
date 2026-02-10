@@ -33,6 +33,8 @@ def get_extractors_from_name(name: str):
         extractors = ExtractorType.resnet50
     elif name == "GIGAPATH":
         extractors = ExtractorType.gigapath
+    elif name == "UNI":
+        extractors = ExtractorType.uni
     else:
         raise ValueError(f"Unknown extractor configuration: {name}")
     return extractors

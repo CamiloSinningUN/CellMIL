@@ -131,6 +131,7 @@ Extract Topological features from the segmented cells and created graph:
 - ``geometric``: Geometric features based on the graph geometry.
 - ``resnet50``: Embedding features extracted from the ResNet50 model.
 - ``gigapath``: Embedding features extracted from the Prov-GigaPath model.
+- ``uni``: Embedding features extracted from the UNI model.
 
 Step 5: Visualization (Optional)
 --------------------------------
