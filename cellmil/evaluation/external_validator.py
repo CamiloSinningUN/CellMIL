@@ -1453,10 +1453,11 @@ class ExternalValidator:
         """Generate LaTeX tables."""
         # Common configuration shared by classification and survival tables
         common_config: dict[str, Any] = {
-            "baseline_features": ["RESNET", "GIGAPATH"],
+            "baseline_features": ["RESNET", "GIGAPATH", "UNI"],
             "feature_mapping": {
                 "RESNET": "ResNet50",
                 "GIGAPATH": "GigaPath",
+                "UNI": "UNI",
                 "MORPHO": "Morphological",
                 "PYRAD": "Radiomics",
                 "TOPO": "Topological",

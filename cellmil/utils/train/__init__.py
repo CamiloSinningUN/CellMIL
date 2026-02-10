@@ -108,10 +108,10 @@ def get_lit_model_creator(model: str, task: str, n_bins: int, feature: str, df: 
             
             model = AttentionDeepMIL(
                 embed_dim=input_dim,
-                size_arg=[256, 128] if feature != "RESNET" and feature != "GIGAPATH" else [500, 128],
+                size_arg=[256, 128] if feature != "RESNET" and feature != "GIGAPATH" and feature != "UNI" else [500, 128],
                 n_classes=2 if not is_survival else n_bins,
-                attention_branches=8 if feature != "RESNET" and feature != "GIGAPATH" else 1,
-                temperature=1.5 if feature != "RESNET" and feature != "GIGAPATH" else 1.0
+                attention_branches=8 if feature != "RESNET" and feature != "GIGAPATH" and feature != "UNI" else 1,
+                temperature=1.5 if feature != "RESNET" and feature != "GIGAPATH" and feature != "UNI" else 1.0
             )
 
             optimizer = AdamW(
@@ -145,8 +145,8 @@ def get_lit_model_creator(model: str, task: str, n_bins: int, feature: str, df: 
             return lit_model
     
     elif model == "HEAD4TYPE":
-        if feature in ["RESNET", "GIGAPATH"]:
-            raise ValueError("HEAD4TYPE model is not compatible with RESNET or GIGAPATH features.")
+        if feature in ["RESNET", "GIGAPATH", "UNI"]:
+            raise ValueError("HEAD4TYPE model is not compatible with RESNET, GIGAPATH, or UNI features.")
         
         def lit_model_creator(input_dim: int, use_lr_scheduler = True) -> Pl.LightningModule:
             from cellmil.models.mil.head4type import Head4Type, LitHead4Type, LitSurvHead4Type

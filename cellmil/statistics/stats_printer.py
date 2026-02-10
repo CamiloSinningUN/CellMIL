@@ -42,6 +42,7 @@ class StatsPrinter:
             self.FEATURES_KEY: [
                 "RESNET",
                 "GIGAPATH",
+                "UNI",
                 "MORPHO",
                 "PYRAD",
                 "GRAPH",
