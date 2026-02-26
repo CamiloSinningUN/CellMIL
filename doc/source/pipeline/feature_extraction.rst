@@ -157,6 +157,9 @@ UNI is a general-purpose self-supervised vision transformer model pretrained on 
 CLI Usage
 =========
 
+.. note::
+   ⭐ indicates recommended options based on best practices and empirical results.
+
 Basic Command
 -------------
 
@@ -170,6 +173,24 @@ Required Arguments
 .. option:: --extractor {pyradiomics_gray, pyradiomics_hue, pyradiomics_hed, morphometrics, connectivity, geometric, resnet50, gigapath, uni}
 
    Feature extraction method to use.
+   
+   **Morphological extractors:**
+   
+   - ``pyradiomics_gray``: Comprehensive radiomics features with gray-scale preprocessing
+   - ``pyradiomics_hed``: ⭐ Recommended. Radiomics features from Hematoxylin channel
+   - ``pyradiomics_hue``: Radiomics features with Hue channel preprocessing
+   - ``morphometrics``: Morphological shape features
+   
+   **Topological extractors:**
+   
+   - ``connectivity``: Topological features based on cell connectivity
+   - ``geometric``: Geometric features based on graph geometry
+   
+   **Deep learning extractors:**
+   
+   - ``resnet50``: ResNet50 embedding features
+   - ``gigapath``: Prov-GigaPath embedding features
+   - ``uni``: UNI embedding features
 
 .. option:: --wsi_path PATH
 
@@ -193,17 +214,17 @@ Complete Example
 .. code-block:: bash
 
    feature_extraction \
-       --extractor pyradiomics_gray \
-       --wsi_path ./data/C3L-00001-21.svs \
-       --patched_slide_path ./results/C3L-00001-21 \
+       --extractor pyradiomics_hed \
+       --wsi_path ./data/SLIDE_1.svs \
+       --patched_slide_path ./results/SLIDE_1 \
        --segmentation_model cellvit \
-       --graph_method knn
+       --graph_method delaunay_radius
 
 This command will:
 
-1. Load cell masks from ``./results/C3L-00001-21/cell_detection/cellvit/``
-2. Extract PyRadiomics features from each segmented cell using gray-scale preprocessing.
-3. Save feature vectors to ``./results/C3L-00001-21/feature_extraction/pyradiomics_gray/cellvit/``
+1. Load cell masks from ``./results/SLIDE_1/cell_detection/cellvit/``
+2. Extract PyRadiomics features from each segmented cell using HED preprocessing (recommended).
+3. Save feature vectors to ``./results/SLIDE_1/feature_extraction/pyradiomics_hed/cellvit/``
 
 Python API Usage
 ================
@@ -218,11 +239,11 @@ You can also extract features programmatically:
 
    # Create configuration
    config = FeatureExtractorConfig(
-       extractor="pyradiomics_gray",
-       wsi_path=Path("./data/C3L-00001-21.svs"),
-       patched_slide_path=Path("./results/C3L-00001-21"),
+       extractor="pyradiomics_hed",
+       wsi_path=Path("./data/SLIDE_1.svs"),
+       patched_slide_path=Path("./results/SLIDE_1"),
        segmentation_model="cellvit",
-       graph_method="knn"
+       graph_method="delaunay_radius"
    )
 
    # Initialize extractor

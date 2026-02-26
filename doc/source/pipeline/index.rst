@@ -49,10 +49,10 @@ Basic CLI Commands
    cell_segmentation --model cellvit --gpu 0 --wsi_path ./data/slide.svs --patched_slide_path ./results/slide
 
    # Create spatial graphs from segmented cells
-   graph_creation --methods knn --patched_slide_path ./results/slide --segmentation_model cellvit
+   graph_creation --method delaunay_radius --patched_slide_path ./results/slide --segmentation_model cellvit
 
    # Extract features from segmented cells
-   feature_extraction --extractor pyradiomics --wsi_path ./data/slide.svs --patched_slide_path ./results/slide --segmentation_model cellvit
+   feature_extraction --extractor pyradiomics_hed --wsi_path ./data/slide.svs --patched_slide_path ./results/slide --segmentation_model cellvit
 
    # Create a dataset from multiple slides
    create_dataset --excel_path ./data/metadata.xlsx --output_path ./results --gpu 0 --segmentation_models cellvit hovernet --extractors morphometrics pyradiomics

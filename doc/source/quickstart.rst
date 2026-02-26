@@ -35,7 +35,7 @@ Extract patches from your WSI with specified parameters:
 
    patch_extraction \
        --output_path ./results \
-       --wsi_path ./data/C3L-00001-21.svs \
+       --wsi_path ./data/SLIDE_1.svs \
        --patch_size 1024 \
        --patch_overlap 6.25 \
        --target_mag 20.0
@@ -53,19 +53,22 @@ Step 2: Cell Segmentation
 
 Segment cells within the extracted patches using your preferred model:
 
+.. note::
+   ⭐ indicates recommended options based on best practices and empirical results.
+
 .. code-block:: bash
 
    cell_segmentation \
        --model cellvit \
        --gpu 0 \
-       --wsi_path ./data/C3L-00001-21.svs \
-       --patched_slide_path ./results/C3L-00001-21
+       --wsi_path ./data/SLIDE_1.svs \
+       --patched_slide_path ./results/SLIDE_1
 
 **Available segmentation models:**
 
-- ``cellvit``: Vision transformer for nuclear instance segmentation and classification
+- ``cellvit`` ⭐: Vision transformer for nuclear instance segmentation and classification
 - ``hovernet``: Convolutional model for nuclear instance segmentation and classification
-- ``cellpose_sam``: Cellpose with SAM as backbone for cell segmentation
+- ``cellpose_sam``: Cellpose with SAM as backbone for cell segmentation (no cell types)
 
 **Parameters explained:**
 
@@ -81,15 +84,15 @@ Create spatial graphs from the segmented cells:
 .. code-block:: bash
 
    graph_creation \
-       --method knn \
+       --method delaunay_radius \
        --gpu 0 \
-       --patched_slide_path ./results/C3L-00001-21 \
+       --patched_slide_path ./results/SLIDE_1 \
        --segmentation_model cellvit
 
 **Available graph creation methods:**
 
 - ``knn``: K-nearest neighbors graph
-- ``delaunay_radius``: Delaunay triangulation graph with a radius limit
+- ``delaunay_radius`` ⭐: Delaunay triangulation graph with a radius limit
 - ``radius``: Radius-based graph
 - ``dilate``: Dilation of segmented nuclei based graph
 - ``similarity``: Similarity-based graph using morphological features (Morphometrics and Pyradiomics)
@@ -106,9 +109,9 @@ Extract morphological features from the segmented cells:
 
 .. code-block:: bash
    feature_extraction \
-      --extractor pyradiomics_gray \
-      --wsi_path ./data/C3L-00001-21.svs \
-      --patched_slide_path ./results/C3L-00001-21 \
+      --extractor pyradiomics_hed \
+      --wsi_path ./data/SLIDE_1.svs \
+      --patched_slide_path ./results/SLIDE_1 \
       --segmentation_model cellvit
 
 Extract Topological features from the segmented cells and created graph:
@@ -116,14 +119,14 @@ Extract Topological features from the segmented cells and created graph:
 .. code-block:: bash
    feature_extraction \
        --extractor connectivity \
-       --patched_slide_path ./results/C3L-00001-21 \
+       --patched_slide_path ./results/SLIDE_1 \
        --segmentation_model cellvit \
        --graph_method knn
 
 .. **Available feature extractors:**
 
 - ``pyradiomics_gray``: Comprehensive radiomics features with gray-scale preprocessing.
-- ``pyradiomics_hed``: Comprehensive radiomics features with HED preprocessing taking the Haematoxylin channel.
+- ``pyradiomics_hed`` ⭐: Comprehensive radiomics features with HED preprocessing taking the Haematoxylin channel.
 - ``pyradiomics_hue``: Comprehensive radiomics features with Hue channel preprocessing.
 - ``morphometrics``: Morphological features `Functional Morphometric Analysis in Cellular Behaviors: Shape and Size Matter <http://dx.doi.org/10.1002/adhm.201300053>`_
 - ``connectivity``: Topological features based on the cell connectivity graph.
@@ -141,7 +144,7 @@ Visualize the extracted features:
 .. code-block:: bash
 
    vis_features \
-       --patched_slide_path ./results/C3L-00001-21
+       --patched_slide_path ./results/SLIDE_1
 
 This will generate visualizations of the feature distributions and correlation patterns.
 
@@ -154,7 +157,7 @@ After running the complete pipeline, your output directory will have this struct
 .. code-block:: text
 
    results/
-   └── C3L-00001-21/
+   └── SLIDE_1/
        ├── patches/                    # Extracted patches
        │   ├── patch_0_0.png
        │   ├── patch_0_1.png

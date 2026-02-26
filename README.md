@@ -4,10 +4,17 @@
 ![PyTorch 2.7.1](https://img.shields.io/badge/pytorch-2.7.1-orange.svg)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://camilosinningun.github.io/CellMIL/)
 
-A flexible and modular framework for cell-level feature extraction and interaction modeling in a Multiple Instance Learning pipeline for digital pathology.
+A Controllable and Flexible Multiple Instance Learning Framework for Explainable Digital Pathology Using Cell-Level Features.
 
 ![CellMIL Overview](static/overview.png#gh-light-mode-only)
 ![CellMIL Overview](static/overview_inv.png#gh-dark-mode-only)
+
+---
+
+> 📚 **For comprehensive documentation, tutorials, and API reference, visit our [official documentation](https://camilosinningun.github.io/CellMIL/).**  
+> This README provides a quick overview and getting started guide. For detailed information on each component, advanced usage, and examples, please refer to the full documentation.
+
+---
 
 ## Table of Contents
 
@@ -32,6 +39,8 @@ A flexible and modular framework for cell-level feature extraction and interacti
       - [Patch embeddings](#patch-embeddings)
     - [Feature visualization](#feature-visualization)
     - [Create dataset](#create-dataset)
+  - [Training MIL Models](#training-mil-models)
+  - [Explainability](#explainability)
   - [Technical Details](#technical-details)
     - [Supported Input Formats](#supported-input-formats)
     - [Metadata Excel Format](#metadata-excel-format)
@@ -139,12 +148,14 @@ pip install pyradiomics --no-build-isolation
 
 Every step of the pipeline can be executed using the provided CLI tools. Bellow there is a brief description of each step along with example commands. For a more detailed description of each command please refer to the documentation [here](https://camilosinningun.github.io/CellMIL/).
 
+> ℹ️ **Note:** Options marked with ⭐ are recommended defaults based on best practices and empirical results.
+
 ### Data Preparation
 
 The project includes a CLI tool for preparing WSI (Whole Slide Image) data for analysis a.k.a. Extracting the patches:
 
 ```bash
-patch_extraction --output_path ./results   --wsi_path ./data/C3L-00001-21.svs   --patch_size 256   --patch_overlap 6.25   --target_mag 40.0
+patch_extraction --output_path ./results   --wsi_path ./data/SLIDE_1.svs   --patch_size 256   --patch_overlap 6.25   --target_mag 40.0
 
 ```
 
@@ -153,14 +164,16 @@ patch_extraction --output_path ./results   --wsi_path ./data/C3L-00001-21.svs   
 After preparing the data you can run cell segmentation on the slide using the follwing cli tool:
 
 ```bash
-cell_segmentation --model cellvit --gpu 0  --wsi_path ./data/C3L-00001-21.svs   --patched_slide_path ./results/C3L-00001-21
+cell_segmentation --model cellvit --gpu 0  --wsi_path ./data/SLIDE_1.svs   --patched_slide_path ./results/SLIDE_1
 
 ```
 
 Model options:
-1. `cellvit`
+1. `cellvit` ⭐
 2. `hovernet`
 3. `cellpose_sam`
+
+> **Note:** `cellpose_sam` does not provide cell type information, which is required for the Head4Type MIL model. Use `cellvit` or `hovernet` if you need cell types.
 
 The results of the segmentation will be stored in the `patched_slide_path` folder under the subfolder `cell_detection / {model}`.
 
@@ -169,14 +182,14 @@ The results of the segmentation will be stored in the `patched_slide_path` folde
 After extracting the cell instances from the slide:
 
 ```bash
-graph_creation  --method knn --gpu 0 --patched_slide_path ./results/C3L-00001-21  --segmentation_model cellvit
+graph_creation  --method delaunay_radius --gpu 0 --patched_slide_path ./results/SLIDE_1  --segmentation_model cellvit
 
 ```
 
 Method options:
 1. `knn`
 2. `radius`
-3. `delaunay_radius`
+3. `delaunay_radius` ⭐
 4. `dilate`
 5. `similarity`
 
@@ -189,12 +202,12 @@ The results of the graph creation will be stored in the `patched_slide_path` fol
 After extracting the cell instances from the slide:
 
 ```bash
-feature_extraction  --extractor pyradiomics_gray --wsi_path ./data/C3L-00001-21.svs  --patched_slide_path ./results/C3L-00001-21  --segmentation_model cellvit
+feature_extraction  --extractor pyradiomics_hed --wsi_path ./data/SLIDE_1.svs  --patched_slide_path ./results/SLIDE_1  --segmentation_model cellvit
 ```
 
 Extractor options:
 1. `pyradiomics_gray`
-2. `pyradiomics_hed`
+2. `pyradiomics_hed` ⭐
 3. `pyradiomics_hue`
 4. `morphometrics`
 
@@ -204,7 +217,7 @@ Extractor options:
 After extracting the cell instances from the slide and creating a graph with one of the available methods:
 
 ```bash
-feature_extraction  --extractor connectivity --patched_slide_path ./results/C3L-00001-21  --segmentation_model cellvit --graph_method knn
+feature_extraction  --extractor connectivity --patched_slide_path ./results/SLIDE_1  --segmentation_model cellvit --graph_method knn
 ```
 
 Extractor options:
@@ -217,13 +230,13 @@ Extractor options:
 After extracting the patches:
 
 ```bash
-feature_extraction  --extractor resnet50 --patched_slide_path ./results/C3L-00001-21
+feature_extraction  --extractor resnet50 --patched_slide_path ./results/SLIDE_1
 ```
 
 Extractor options:
-1. resnet50
-2. gigapath
-3. uni
+1. `resnet50`
+2. `gigapath`
+3. `uni`
 
 ### Feature visualization
 
@@ -235,7 +248,8 @@ vis_features --dataset ./results
 
 <!-- ### Statistics Print
 
-After doing experiments this command will generate a report with statistic justification on the choices made in this pipeline:
+After doing experiments this command will generate a rep
+df = df[df["label"].isin([0, 1])]ort with statistic justification on the choices made in this pipeline:
 
 ```bash
 stats_print --metric f1 --team camilosinning-cs-politecnico-di-milano --projects 'CELLMIL (K-Fold)' 'CELLMIL (K-Fold Cell Stratified)'
@@ -256,9 +270,147 @@ This command takes the metadata excel and process all the slides present on it t
 create_dataset --excel_path ./data/metadata.xlsx --output_path ./results --gpu 0 --segmentation_models cellvit hovernet cellpose_sam --extractors handcrafted topology_measures --graph_methods knn radius
 ```
 
-### Training MIL Models
+## Training MIL Models
 
-After preparing your dataset, you can train Multiple Instance Learning models on your processed slides. For detailed instructions on configuring and training MIL models, please refer to the [MIL Training Documentation](https://camilosinningun.github.io/CellMIL/pipeline/mil_training/index.html).
+After preparing your dataset, you can train Multiple Instance Learning models on your processed slides. MIL enables training models on whole slide images using only slide-level labels, where each slide is treated as a "bag" of cell instances.
+
+**Supported Tasks:**
+- **Binary Classification**: Predict outcomes like treatment response, histological subtype, or disease status
+- **Survival Prediction**: Time-to-event analysis for prognosis prediction
+
+**Available Models:**
+- **ABMIL (Attention-based Deep MIL)**: Standard attention pooling over cell instances
+- **CLAM**: Clustering-constrained attention with multi-instance learning
+- **TransMIL**: Transformer-based MIL for capturing long-range dependencies
+- **Head4Type**: Cell type-aware attention with separate heads for each cell type (requires cellvit/hovernet)
+- **HistoBistro**: Transformer architecture optimized for histopathology
+- **GraphMIL**: Graph neural network-based MIL for leveraging spatial relationships between cells
+
+**Quick Example:**
+
+```python
+from pathlib import Path
+import pandas as pd
+from cellmil.datamodels.datasets import MILDataset
+from cellmil.utils.train.evals import KFoldCrossValidation
+
+# Load metadata
+df = pd.read_excel("./data/metadata.xlsx")
+df = df[df["label"].isin([0, 1])]
+
+# Create dataset
+dataset = MILDataset(
+    root=Path("./MIL_dataset"),
+    label="label",
+    folder=Path("./dataset"),
+    data=df,
+    extractor="pyradiomics_hed",
+    segmentation_model="cellvit",
+)
+
+# Define model creator function
+def create_model(input_dim: int):
+    from cellmil.models.mil.abmil import AttentionDeepMIL, LitAttentionDeepMIL
+    from torch.optim import AdamW
+    
+    model = AttentionDeepMIL(embed_dim=input_dim, n_classes=2)
+    lit_model = LitAttentionDeepMIL(
+        model=model,
+        optimizer=AdamW(model.parameters(), lr=1e-4)
+    )
+    return lit_model
+
+# Train with cross-validation
+k_fold = KFoldCrossValidation(
+    dataset=dataset,
+    lit_model_creator=create_model,
+    n_splits=5
+)
+k_fold.run()
+```
+
+For detailed instructions on model configuration, hyperparameter tuning, and advanced training options, refer to the [MIL Training Documentation](https://camilosinningun.github.io/CellMIL/pipeline/mil_training/index.html).
+
+## Explainability
+
+CellMIL provides two complementary methods for explaining model predictions and understanding what the models learn from the data.
+
+### Attention Heatmaps
+
+Visualize which cells the model focuses on when making predictions for specific slides. This provides **local, instance-level explanations**.
+
+**Supported Models:**
+- CLAM, ABMIL, Head4Type
+
+**Output Formats:**
+- GeoJSON for pathology viewers (QuPath, etc.)
+- Interactive graph visualizations
+
+**Quick Example:**
+
+```python
+from cellmil.explainability.attention import AttentionExplainer
+from cellmil.interfaces.AttentionExplainerConfig import AttentionExplainerConfig
+from cellmil.datamodels.model import ModelStorage
+from pathlib import Path
+
+# Load trained model
+model_storage = ModelStorage.from_directory("./results/trained_model")
+
+# Configure explainer
+config = AttentionExplainerConfig(
+    output_path=Path("./explanations/attention"),
+    visualization_mode="geojson"
+)
+
+# Initialize explainer
+explainer = AttentionExplainer(config)
+
+# Generate explanation for a specific slide
+results = explainer.generate_explanation(
+    model_storage=model_storage,
+    slide_path=Path("./dataset/slide_name"),
+)
+```
+
+### SHAP Analysis
+
+Identify which cell features (morphological, textural, topological) drive the attention mechanism. This provides **global feature importance**.
+
+**Key Insight:** SHAP analyzes which features lead to high or low attention scores.
+
+**Quick Example:**
+
+```python
+from cellmil.explainability.shap import SHAPExplainer
+from cellmil.interfaces.SHAPExplainerConfig import SHAPExplainerConfig
+from cellmil.datamodels.model import ModelStorage
+import pandas as pd
+from pathlib import Path
+
+# Load trained model
+model_storage = ModelStorage.from_directory("./results/trained_model")
+
+# Load metadata (must have 'FULL_PATH' column with slide names)
+metadata = pd.read_excel("./data/metadata.xlsx")
+
+# Configure SHAP explainer
+config = SHAPExplainerConfig(
+    output_path=Path("./explanations/shap")
+)
+
+# Initialize explainer
+shap_explainer = SHAPExplainer(config)
+
+# Generate explanation
+results = shap_explainer.generate_explanation(
+    model_storage=model_storage,
+    dataset_folder=Path("./dataset"),
+    data=metadata,
+)
+```
+
+For more details on visualization options, normalization methods, and interpretation, see the [Explainability Documentation](https://camilosinningun.github.io/CellMIL/explainability.html).
 
 ## Technical Details
 
@@ -280,8 +432,8 @@ Example:
 
 | PATH                           |
 |--------------------------------|
-| /data/slides/C3L-00001-21.svs  |
-| /data/slides/C3L-00001-26.svs  |
+| /data/slides/SLIDE_1.svs       |
+| /data/slides/SLIDE_2.svs       |
 
 
 ### Output Directory Structure
@@ -366,6 +518,8 @@ This project builds upon several key research papers and tools:
 
 ### Multiple Instance Learning Models
 
+- **ABMIL** M. Ilse, J. Tomczak, and M. Welling. Attention-based  deep multiple instance learning. pages 2127–2136, 2018.
+
 - **CLAM**: Data-efficient and weakly supervised computational pathology on whole-slide images  
   Lu, Ming Y et al., Nature Biomedical Engineering, 2021  
   [DOI: 10.1038/s41551-021-00707-9](https://doi.org/10.1038/s41551-021-00707-9)
@@ -410,6 +564,14 @@ This project builds upon several key research papers and tools:
 - **UNI**: Towards a General-Purpose Foundation Model for Computational Pathology  
   Chen, Richard J et al., Nature Medicine, 2024  
 
+### Datasets
+
+Images used in documentation are from this dataset:
+
+- **CPTAC**: National Cancer Institute Clinical Proteomic Tumor Analysis Consortium (CPTAC). The clinical proteomic tumor analysis consortium lung adenocarcinoma collection (cptac-luad), 2018. 
+[URL: https://www.cancerimagingarchive.net/collection/cptac-luad/](https://www.cancerimagingarchive.net/collection/cptac-luad/)  
+  
+
 ### Others
 
 - **Ceograph**: Deep learning of cell spatial organizations identifies clinically relevant insights in tissue images  
@@ -417,8 +579,6 @@ This project builds upon several key research papers and tools:
   [DOI: 10.1038/s41467-023-43172-6](https://doi.org/10.1038/s41467-023-43172-6)
 
 - **Pyradiomics** van Griethuysen, J. J. M., Fedorov, A., Parmar, C., Hosny, A., Aucoin, N., Narayan, V., Beets-Tan, R. G. H., Fillion-Robin, J. C., Pieper, S., Aerts, H. J. W. L. (2017). Computational Radiomics System to Decode the Radiographic Phenotype. Cancer Research, 77(21), e104–e107. https://doi.org/10.1158/0008-5472.CAN-17-0339
-
-- **CPTAC** National Cancer Institute Clinical Proteomic Tumor Analysis Consortium (CPTAC). The clinical proteomic tumor analysis consortium lung adenocarcinoma collection (cptac-luad), 2018. URL https://www.cancerimagingarchive.net/collection/cptac-luad/.
 
 ## Contributions
 

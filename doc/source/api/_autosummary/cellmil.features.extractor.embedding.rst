@@ -1,4 +1,4 @@
-cellmil.features.extractor.embedding
+﻿cellmil.features.extractor.embedding
 ====================================
 
 .. automodule:: cellmil.features.extractor.embedding
@@ -20,7 +20,7 @@ cellmil.features.extractor.embedding
       EmbeddingExtractor
       GigapathExtractor
       ResNet50Extractor
-      VirchowExtractor
+      UNIExtractor
    
    
 

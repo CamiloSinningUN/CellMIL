@@ -55,17 +55,17 @@ Complete Example
 
    patch_extraction \
        --output_path ./results \
-       --wsi_path ./data/C3L-00001-21.svs \
+       --wsi_path ./data/SLIDE_1.svs \
        --patch_size 1024 \
        --patch_overlap 6.25 \
        --target_mag 20.0
 
 This command will:
 
-1. Load the WSI file ``C3L-00001-21.svs``
+1. Load the WSI file ``SLIDE_1.svs``
 2. Resample to 20x magnification
 3. Extract 1024x1024 pixel patches with 6.25% overlap
-4. Save results to ``./results/C3L-00001-21/``
+4. Save results to ``./results/SLIDE_1/``
 
 Python API Usage
 ================
@@ -81,7 +81,7 @@ You can also use patch extraction programmatically in Python:
    # Create configuration
    config = PatchExtractorConfig(
        output_path=Path("./results"),
-       wsi_path=Path("./data/C3L-00001-21.svs"),
+       wsi_path=Path("./data/SLIDE_1.svs"),
        patch_size=1024,
        patch_overlap=6.25,
        target_mag=20.0

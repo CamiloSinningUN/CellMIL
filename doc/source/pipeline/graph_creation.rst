@@ -64,6 +64,9 @@ Where :math:`S_{ij}` is the similarity score between cells :math:`i` and :math:`
 CLI Usage
 =========
 
+.. note::
+   ⭐ indicates recommended options based on best practices and empirical results.
+
 Basic Command
 -------------
 
@@ -76,7 +79,13 @@ Required Arguments
 
 .. option:: method {knn, radius, delaunay_radius, dilate}
 
-   Graph creation method to use. Choose based on your specific preference.
+   Graph creation method to use.
+   
+   - ``knn``: K-nearest neighbors graph
+   - ``radius``: Radius-based graph
+   - ``delaunay_radius``: ⭐ Recommended. Balances local and global connectivity
+   - ``dilate``: Nuclei dilation-based graph
+   - ``similarity``: Similarity-based graph
 
 .. option:: gpu: INTEGER
 
@@ -102,11 +111,11 @@ Complete Example
 
 .. code-block:: bash
 
-   graph_creation --method knn --gpu 0 --patched_slide_path /path/to/segmentation/results --segmentation_model cellvit
+   graph_creation --method delaunay_radius --gpu 0 --patched_slide_path /path/to/segmentation/results --segmentation_model cellvit
 
 This command will:
 
-1. Use the K-Nearest Neighbors (KNN) method for graph creation.
+1. Use the Delaunay radius method for graph creation (recommended).
 2. Utilize GPU device 0 for computation.
 3. Specify the path to the directory containing segmentation results.
 4. Use the CellViT segmentation model for cell segmentation.
@@ -120,7 +129,7 @@ Python API Usage
     from cellmil.graph import GraphCreator
 
     config = GraphCreatorConfig(
-        method="knn",
+        method="delaunay_radius",
         gpu=0,
         patched_slide_path=Path("/path/to/segmentation/results"),
         segmentation_model="cellvit",

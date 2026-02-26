@@ -49,7 +49,7 @@ Extract patches from whole slide images. For complete documentation, see :doc:`p
 
    patch_extraction \
        --output_path ./results \
-       --wsi_path ./data/C3L-00001-21.svs \
+       --wsi_path ./data/SLIDE_1.svs \
        --patch_size 1024 \
        --patch_overlap 6.25 \
        --target_mag 20.0
@@ -64,8 +64,8 @@ Segment individual cells within extracted patches. For complete documentation, s
    cell_segmentation \
        --model cellvit \
        --gpu 0 \
-       --wsi_path ./data/C3L-00001-21.svs \
-       --patched_slide_path ./results/C3L-00001-21
+       --wsi_path ./data/SLIDE_1.svs \
+       --patched_slide_path ./results/SLIDE_1
 
 **Available models**: ``cellvit``, ``hovernet``, ``cellpose_sam``
 
@@ -77,9 +77,9 @@ Create spatial graphs from segmented cells. For complete documentation, see :doc
 .. code-block:: bash
 
    graph_creation \
-       --method knn \
+       --method delaunay_radius \
        --gpu 0 \
-       --patched_slide_path ./results/C3L-00001-21 \
+       --patched_slide_path ./results/SLIDE_1 \
        --segmentation_model cellvit
 
 **Available methods**: ``knn``, ``delaunay_radius``, ``radius``, ``dilate``, ``similarity``
@@ -93,8 +93,8 @@ Extract morphological and radiomics features from segmented cells. For complete 
 
    feature_extraction \
        --extractor connectivity \
-       --wsi_path ./data/C3L-00001-21.svs \
-       --patched_slide_path ./results/C3L-00001-21 \
+       --wsi_path ./data/SLIDE_1.svs \
+       --patched_slide_path ./results/SLIDE_1 \
        --segmentation_model cellvit \
        --graph_method knn
 
@@ -124,7 +124,7 @@ Visualize extracted features for quality control and analysis.
 .. code-block:: bash
 
    vis_features \
-       --patched_slide_path ./results/C3L-00001-21
+       --patched_slide_path ./results/SLIDE_1
 
 
 Complete Pipeline Example

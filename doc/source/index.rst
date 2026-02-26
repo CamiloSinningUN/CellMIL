@@ -81,37 +81,37 @@ Basic Usage
 
 .. code-block:: bash
 
-   patch_extraction --output_path ./results --wsi_path ./data/C3L-00001-21.svs --patch_size 1024 --patch_overlap 6.25 --target_mag 20.0
+   patch_extraction --output_path ./results --wsi_path ./data/SLIDE_1.svs --patch_size 1024 --patch_overlap 6.25 --target_mag 20.0
 
 2. **Run cell segmentation**:
 
 .. code-block:: bash
 
-   cell_segmentation --model cellvit --gpu 0 --wsi_path ./data/C3L-00001-21.svs --patched_slide_path ./results/C3L-00001-21
+   cell_segmentation --model cellvit --gpu 0 --wsi_path ./data/SLIDE_1.svs --patched_slide_path ./results/SLIDE_1
 
 3. **Graph creation**:
    
 .. code-block:: bash
 
-   graph_creation  --method knn --gpu 0 --patched_slide_path ./results/C3L-00001-21  --segmentation_model cellvit
+   graph_creation  --method delaunay_radius --gpu 0 --patched_slide_path ./results/SLIDE_1  --segmentation_model cellvit
 
    4.1. **Morphological features**:
 
    .. code-block:: bash
 
-      feature_extraction  --extractor pyradiomics_gray  --patched_slide_path ./results/C3L-00001-21  --segmentation_model cellvit
+      feature_extraction  --extractor pyradiomics_hed  --patched_slide_path ./results/SLIDE_1  --segmentation_model cellvit
 
    4.2. **Topological features**:
 
    .. code-block:: bash
 
-      feature_extraction  --extractor connectivity --patched_slide_path ./results/C3L-00001-21  --segmentation_model cellvit --graph_method knn
+      feature_extraction  --extractor connectivity --patched_slide_path ./results/SLIDE_1  --segmentation_model cellvit --graph_method delaunay_radius
 
    4.3. **Embedding features**:
 
    .. code-block:: bash
 
-      feature_extraction  --extractor resnet50 --patched_slide_path ./results/C3L-00001-21 
+      feature_extraction  --extractor resnet50 --patched_slide_path ./results/SLIDE_1 
 
 Documentation Contents
 ======================

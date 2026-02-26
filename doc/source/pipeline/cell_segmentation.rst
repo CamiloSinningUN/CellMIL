@@ -43,6 +43,9 @@ Cellpose + SAM [#cellpose_sam]_
 
 Combination of Cellpose with Segment Anything Model (SAM) for enhanced cell segmentation.
 
+.. note::
+   **Cell Type Limitation:** Cellpose+SAM only provides cell segmentation masks and does not classify cell types. If you need cell type information (required for Head4Type model), use CellViT or HoVerNet instead.
+
 .. figure:: ../_static/cellpose_sam.png
    :alt: Cellpose + SAM Model Architecture
    :width: 100%
@@ -52,6 +55,9 @@ Combination of Cellpose with Segment Anything Model (SAM) for enhanced cell segm
 
 CLI Usage
 =========
+
+.. note::
+   ⭐ indicates recommended options based on best practices and empirical results.
 
 Basic Command
 -------------
@@ -66,6 +72,10 @@ Required Arguments
 .. option:: --model {cellvit,hovernet,cellpose_sam}
 
    Segmentation model to use. Choose based on your specific requirements and cell types.
+   
+   - ``cellvit``: ⭐ Recommended. Provides cell type information.
+   - ``hovernet``: Provides cell type information.
+   - ``cellpose_sam``: Does not provide cell type information.
 
 .. option:: --wsi_path PATH
 
@@ -92,15 +102,15 @@ Complete Example
    cell_segmentation \
        --model cellvit \
        --gpu 0 \
-       --wsi_path ./data/C3L-00001-21.svs \
-       --patched_slide_path ./results/C3L-00001-21
+       --wsi_path ./data/SLIDE_1.svs \
+       --patched_slide_path ./results/SLIDE_1
 
 This command will:
 
-1. Load patches from ``./results/C3L-00001-21/patches/``
+1. Load patches from ``./results/SLIDE_1/patches/``
 2. Apply CellViT segmentation model using GPU 0
 3. Generate cell masks and metadata
-4. Save results to ``./results/C3L-00001-21/cell_detection/cellvit/``
+4. Save results to ``./results/SLIDE_1/cell_detection/cellvit/``
 
 Python API Usage
 ================
@@ -117,8 +127,8 @@ You can also perform cell segmentation programmatically:
    config = CellSegmenterConfig(
        model="cellvit",
        gpu=0,
-       wsi_path=Path("./data/C3L-00001-21.svs"),
-       patched_slide_path=Path("./results/C3L-00001-21")
+       wsi_path=Path("./data/SLIDE_1.svs"),
+       patched_slide_path=Path("./results/SLIDE_1")
    )
 
    # Initialize segmenter
