@@ -97,7 +97,7 @@ Usage
 
    # Load trained model
    model_storage = ModelStorage.from_directory(
-       "./results/ADENOvsSQUA+PYRAD+HEAD4TYPE+REG+STRA"
+       "./results/TASK+FEATURES+MODEL+REG+STRA"
    )
 
    # Initialize explainer
@@ -106,7 +106,7 @@ Usage
    # Generate explanation for a specific slide
    results = explainer.generate_explanation(
        model_storage=model_storage,
-       slide_path=Path("./dataset/DIG_PAT_1696325298"),
+       slide_path=Path("./dataset/SLIDE_1"),
    )
 
 **Using a Specific Fold:**
@@ -116,7 +116,7 @@ Usage
    # Use fold 2 instead of the final model
    results = explainer.generate_explanation(
        model_storage=model_storage,
-       slide_path=Path("./dataset/DIG_PAT_1696325298"),
+       slide_path=Path("./dataset/SLIDE_1"),
        fold_idx=2,  # Use specific fold
    )
 
@@ -149,7 +149,7 @@ The ``ModelStorage`` class manages trained models from k-fold cross-validation e
 
    # Load from k-fold results directory
    model_storage = ModelStorage.from_directory(
-       "./results/OS24+ALL+CLAM+REG+STRA"
+       "./results/TASK+FEATURES+MODEL+REG+STRA"
    )
 
    # Check available folds
@@ -292,11 +292,11 @@ Usage
 
    # Load trained model
    model_storage = ModelStorage.from_directory(
-       "./results/ADENOvsSQUA+PYRAD+HEAD4TYPE+REG+STRA"
+       "./results/TASK+FEATURES+MODEL+REG+STRA"
    )
 
    # Load metadata (must have 'FULL_PATH' column with slide names)
-   metadata = pd.read_excel("./data/dp_metadata_INT_40.xlsx")
+   metadata = pd.read_excel("./data/metadata.xlsx")
 
    # Initialize explainer
    config = SHAPExplainerConfig(output_path=Path("./explanations/shap"))
