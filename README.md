@@ -11,8 +11,8 @@ A Controllable and Flexible Multiple Instance Learning Framework for Explainable
 
 ---
 
-> 📚 **For comprehensive documentation, tutorials, and API reference, visit our [official documentation](https://camilosinningun.github.io/CellMIL/).**  
-> This README provides a quick overview and getting started guide. For detailed information on each component, advanced usage, and examples, please refer to the full documentation.
+📚 **For comprehensive documentation, tutorials, and API reference, visit our [official documentation](https://camilosinningun.github.io/CellMIL/).**  
+This README provides a quick overview and getting started guide. For detailed information on each component, advanced usage, and examples, please refer to the full documentation.
 
 ---
 
