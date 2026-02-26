@@ -1,0 +1,92 @@
+{
+    "total_cells": 55044208,
+    "sampled_cells": 50000,
+    "num_features": 65,
+    "num_heads": 8,
+    "heads_explained": [
+        "head_0",
+        "head_1",
+        "head_2",
+        "head_3",
+        "head_4",
+        "head_5",
+        "head_6",
+        "head_7",
+        "mean"
+    ],
+    "sampling_info": {
+        "num_bins": 5,
+        "samples_per_bin": 10000,
+        "total_sampled": 50000,
+        "bin_info": {
+            "bin_1": {
+                "range": [
+                    -6.157590866088867,
+                    -3.666222333908081
+                ],
+                "total_cells": 11008841,
+                "sampled_cells": 10000,
+                "sampling_rate": 0.0009083608347145716
+            },
+            "bin_2": {
+                "range": [
+                    -3.666222333908081,
+                    -2.6222572326660156
+                ],
+                "total_cells": 11008840,
+                "sampled_cells": 10000,
+                "sampling_rate": 0.0009083609172265198
+            },
+            "bin_3": {
+                "range": [
+                    -2.6222572326660156,
+                    -1.5875822305679321
+                ],
+                "total_cells": 11008843,
+                "sampled_cells": 10000,
+                "sampling_rate": 0.0009083606696907205
+            },
+            "bin_4": {
+                "range": [
+                    -1.5875822305679321,
+                    -0.23631428778171537
+                ],
+                "total_cells": 11008842,
+                "sampled_cells": 10000,
+                "sampling_rate": 0.0009083607522026386
+            },
+            "bin_5": {
+                "range": [
+                    -0.23631428778171537,
+                    5.458296298980713
+                ],
+                "total_cells": 11008842,
+                "sampled_cells": 10000,
+                "sampling_rate": 0.0009083607522026386
+            }
+        }
+    },
+    "attention_stats": {
+        "min": -6.157590866088867,
+        "max": 5.458296298980713,
+        "mean": -1.9096786975860596,
+        "std": 1.9786776304244995
+    },
+    "config": {
+        "output_path": "INT",
+        "num_bins": 5,
+        "samples_per_bin": 10000,
+        "max_total_samples": null,
+        "explainer_type": "gradient",
+        "background_percentage": 0.2,
+        "nsamples": 500,
+        "explain_top_cells": null,
+        "explain_per_head": true,
+        "explain_mean_head": true,
+        "top_features": 20,
+        "random_seed": 42,
+        "batch_size": 1024,
+        "save_raw_shap_values": true,
+        "create_summary_plots": true
+    }
+}

@@ -1,0 +1,84 @@
+{
+    "total_cells": 55044208,
+    "sampled_cells": 50000,
+    "num_features": 64,
+    "num_heads": 1,
+    "heads_explained": [
+        "mean"
+    ],
+    "sampling_info": {
+        "num_bins": 5,
+        "samples_per_bin": 10000,
+        "total_sampled": 50000,
+        "bin_info": {
+            "bin_1": {
+                "range": [
+                    -8.648536682128906,
+                    -3.3346301555633544
+                ],
+                "total_cells": 11008841,
+                "sampled_cells": 10000,
+                "sampling_rate": 0.0009083608347145716
+            },
+            "bin_2": {
+                "range": [
+                    -3.3346301555633544,
+                    -1.5296335220336914
+                ],
+                "total_cells": 11008841,
+                "sampled_cells": 10000,
+                "sampling_rate": 0.0009083608347145716
+            },
+            "bin_3": {
+                "range": [
+                    -1.5296335220336914,
+                    -0.3629977285861925
+                ],
+                "total_cells": 11008843,
+                "sampled_cells": 10000,
+                "sampling_rate": 0.0009083606696907205
+            },
+            "bin_4": {
+                "range": [
+                    -0.3629977285861925,
+                    0.8701120495796206
+                ],
+                "total_cells": 11008841,
+                "sampled_cells": 10000,
+                "sampling_rate": 0.0009083608347145716
+            },
+            "bin_5": {
+                "range": [
+                    0.8701120495796206,
+                    4.723564624786377
+                ],
+                "total_cells": 11008842,
+                "sampled_cells": 10000,
+                "sampling_rate": 0.0009083607522026386
+            }
+        }
+    },
+    "attention_stats": {
+        "min": -8.648536682128906,
+        "max": 4.723564624786377,
+        "mean": -1.2548234462738037,
+        "std": 2.407479763031006
+    },
+    "config": {
+        "output_path": "INT",
+        "num_bins": 5,
+        "samples_per_bin": 10000,
+        "max_total_samples": null,
+        "explainer_type": "gradient",
+        "background_percentage": 0.2,
+        "nsamples": 500,
+        "explain_top_cells": null,
+        "explain_per_head": true,
+        "explain_mean_head": true,
+        "top_features": 20,
+        "random_seed": 42,
+        "batch_size": 1024,
+        "save_raw_shap_values": true,
+        "create_summary_plots": true
+    }
+}

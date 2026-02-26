@@ -38,9 +38,12 @@ A Controllable and Flexible Multiple Instance Learning Framework for Explainable
       - [Topological](#topological)
       - [Patch embeddings](#patch-embeddings)
     - [Feature visualization](#feature-visualization)
+    - [Evaluation Report](#evaluation-report)
+    - [External Validation Report](#external-validation-report)
     - [Create dataset](#create-dataset)
   - [Training MIL Models](#training-mil-models)
   - [Explainability](#explainability)
+  - [Example Use Case](#example-use-case)
   - [Technical Details](#technical-details)
     - [Supported Input Formats](#supported-input-formats)
     - [Metadata Excel Format](#metadata-excel-format)
@@ -246,21 +249,45 @@ After extracting the features we can run the following command to have a visuali
 vis_features --dataset ./results
 ```
 
-<!-- ### Statistics Print
+### Evaluation Report
 
-After doing experiments this command will generate a rep
-df = df[df["label"].isin([0, 1])]ort with statistic justification on the choices made in this pipeline:
+After doing experiments this command will generate a report with series of plots with the evaluation metrics obtained:
 
 ```bash
-stats_print --metric f1 --team camilosinning-cs-politecnico-di-milano --projects 'CELLMIL (K-Fold)' 'CELLMIL (K-Fold Cell Stratified)'
+eval_report --metrics f1 recall auroc c_index --team camilosinning-cs-politecnico-di-milano --projects 'CELLMIL' --output-dir ../evaluation_reports
 ```
 
 Metric options:
 1. f1
 2. recall
-4. precision
-3. auroc
-5. c_index -->
+3. precision
+4. auroc
+5. c_index
+
+### External Validation Report
+
+After doing experiments this command will run the external validation with the modality and dataset specified and generate a report with the evaluation metrics obtained:
+
+```bash
+eval_external --metrics f1 recall precision auroc c_index --models-dir ../experiments/checkpoints --output-dir ../external_evaluation --final-model ensemble --aggregation-method median --dataset-dir ../dataset_uoc --root-dir ../UOC_MIL_dataset --dp-metadata-file ../data/metadata_UOC.xlsx
+```
+
+Metric options:
+1. f1
+2. recall
+3. precision
+4. auroc
+5. c_index
+
+Final model options:
+1. final
+2. ensemble ⭐
+
+Aggregation method options:
+1. majority
+2. median ⭐
+3. mean
+4. everything (Use all aggregation methods)
 
 ### Create dataset
 
@@ -411,6 +438,14 @@ results = shap_explainer.generate_explanation(
 ```
 
 For more details on visualization options, normalization methods, and interpretation, see the [Explainability Documentation](https://camilosinningun.github.io/CellMIL/explainability.html).
+
+## Example Use Case
+
+For a complete end-to-end example demonstrating the full CellMIL pipeline, see our **NSCLC Immunotherapy Response Prediction** experiment:
+
+📁 [experiments/NSCLC_IO_response/](experiments/NSCLC_IO_response/)
+
+> **Note:** The dataset is private and cannot be provided, but the complete experimental code serves as a template for applying CellMIL to your own histopathology datasets.
 
 ## Technical Details
 

@@ -1,0 +1,71 @@
+{
+\scriptsize
+\setlength{\tabcolsep}{2pt}
+\renewcommand{\arraystretch}{1.5}
+\begin{longtable}{|p{2cm}|C{1.8cm}||C{1.1cm}|C{1.1cm}|C{1.1cm}|C{1.1cm}|C{1.1cm}|C{1.1cm}|C{1.1cm}|C{1.1cm}|C{1.1cm}|C{1.1cm}|}
+    \toprule
+    \textbf{FEATURES} & \textbf{MODEL} & \multicolumn{2}{|c|}{\textbf{Adeno. vs Squa.}} & \multicolumn{2}{|c|}{\textbf{PDL1}} & \multicolumn{2}{|c|}{\textbf{DCR}} & \multicolumn{2}{|c|}{\textbf{OS6}} & \multicolumn{2}{|c|}{\textbf{OS24}}\\
+    \midrule
+     \multicolumn{2}{|c||}{} & F1 & Bal. Acc. & F1 & Bal. Acc. & F1 & Bal. Acc. & F1 & Bal. Acc. & F1 & Bal. Acc.\\
+    \midrule
+    \endfirsthead
+    
+    \multicolumn{12}{c}{\textit{(Continued from previous page)}}\\
+    \toprule
+    \textbf{FEATURES} & \textbf{MODEL} & \multicolumn{2}{|c|}{\textbf{Adeno. vs Squa.}} & \multicolumn{2}{|c|}{\textbf{PDL1}} & \multicolumn{2}{|c|}{\textbf{DCR}} & \multicolumn{2}{|c|}{\textbf{OS6}} & \multicolumn{2}{|c|}{\textbf{OS24}}\\
+    \midrule
+     \multicolumn{2}{|c||}{} & F1 & Bal. Acc. & F1 & Bal. Acc. & F1 & Bal. Acc. & F1 & Bal. Acc. & F1 & Bal. Acc.\\
+    \midrule
+    \endhead
+    
+    \midrule
+    \multicolumn{12}{r}{\textit{(Continued on next page)}}\\
+    \endfoot
+    
+    \midrule
+    \multicolumn{2}{|c||}{\textbf{SUPPORT}} & \multicolumn{2}{c|}{152} & \multicolumn{2}{c|}{141} & \multicolumn{2}{c|}{152} & \multicolumn{2}{c|}{148} & \multicolumn{2}{c|}{118} \\
+    \bottomrule
+    \caption{\textbf{External validation - Classification performance (cell-stratified).}}
+    \label{tab:external_classification_stratified}
+    \endlastfoot
+    
+    \multicolumn{12}{c}{} \\
+    \multicolumn{12}{c}{\textbf{Cell features}} \\
+    \midrule
+    Morphological & ABMIL & $0.456\pm0.000$ & $0.455\pm0.000$ & $0.489\pm0.000$ & $0.496\pm0.000$ & $0.450\pm0.000$ & $0.455\pm0.000$ & $0.377\pm0.000$ & $0.392\pm0.000$ & $0.486\pm0.000$ & $0.487\pm0.000$\\
+    Radiomics & ABMIL & $0.515\pm0.000$ & $0.515\pm0.000$ & $0.546\pm0.000$ & $0.563\pm0.000$ & $0.452\pm0.000$ & $0.460\pm0.000$ & $0.497\pm0.000$ & $0.514\pm0.000$ & $0.479\pm0.000$ & $0.495\pm0.000$\\
+    Topological & ABMIL & $0.469\pm0.000$ & $0.466\pm0.000$ & $0.582\pm0.000$ & $0.593\pm0.000$ & $0.454\pm0.000$ & $0.522\pm0.000$ & $0.569\pm0.000$ & $0.608\pm0.000$ & $0.562\pm0.000$ & $0.572\pm0.000$\\
+    All & ABMIL & $0.569\pm0.000$ & $0.620\pm0.000$ & $0.598\pm0.000$ & $0.604\pm0.000$ & $0.589\pm0.000$ & $0.589\pm0.000$ & $0.547\pm0.000$ & $0.583\pm0.000$ & $0.451\pm0.000$ & $0.475\pm0.000$\\
+    \midrule
+    Morphological & CLAM & $0.503\pm0.000$ & $0.504\pm0.000$ & $0.481\pm0.000$ & $0.492\pm0.000$ & $0.479\pm0.000$ & $0.485\pm0.000$ & $0.364\pm0.000$ & $0.361\pm0.000$ & $0.467\pm0.000$ & $0.469\pm0.000$\\
+    Radiomics & CLAM & $0.556\pm0.000$ & $0.549\pm0.000$ & $0.555\pm0.000$ & $0.566\pm0.000$ & $0.479\pm0.000$ & $0.485\pm0.000$ & $0.495\pm0.000$ & $0.503\pm0.000$ & $0.487\pm0.000$ & $0.497\pm0.000$\\
+    Topological & CLAM & $0.453\pm0.000$ & $0.474\pm0.000$ & $0.569\pm0.000$ & $0.570\pm0.000$ & $0.423\pm0.000$ & $0.519\pm0.000$ & $0.532\pm0.000$ & $0.593\pm0.000$ & $0.579\pm0.000$ & $0.583\pm0.000$\\
+    All & CLAM & $0.499\pm0.000$ & $0.500\pm0.000$ & $0.564\pm0.000$ & $0.574\pm0.000$ & $0.532\pm0.000$ & $0.538\pm0.000$ & $0.542\pm0.000$ & $0.546\pm0.000$ & $0.425\pm0.000$ & $0.444\pm0.000$\\
+    \midrule
+    Morphological & Head4Type & $0.542\pm0.000$ & $0.538\pm0.000$ & $0.616\pm0.000$ & $0.620\pm0.000$ & $0.474\pm0.000$ & $0.496\pm0.000$ & $0.381\pm0.000$ & $0.389\pm0.000$ & $0.488\pm0.000$ & $0.537\pm0.000$\\
+    Radiomics & Head4Type & $0.588\pm0.000$ & $0.620\pm0.000$ & $0.521\pm0.000$ & $0.550\pm0.000$ & $0.539\pm0.000$ & $0.540\pm0.000$ & $0.466\pm0.000$ & $0.514\pm0.000$ & $0.543\pm0.000$ & $0.545\pm0.000$\\
+    Topological & Head4Type & $0.478\pm0.000$ & $0.485\pm0.000$ & $0.605\pm0.000$ & $0.605\pm0.000$ & $0.513\pm0.000$ & $0.552\pm0.000$ & $0.580\pm0.000$ & $0.624\pm0.000$ & $0.599\pm0.000$ & $0.599\pm0.000$\\
+    All & Head4Type & $0.564\pm0.000$ & $0.617\pm0.000$ & $0.585\pm0.000$ & $0.594\pm0.000$ & $0.604\pm0.000$ & $0.616\pm0.000$ & $0.466\pm0.000$ & $0.514\pm0.000$ & $0.504\pm0.000$ & $0.520\pm0.000$\\
+    \midrule
+    \midrule
+    \multicolumn{12}{|c|}{} \\
+    \multicolumn{12}{|c|}{\textbf{Attention Entropy Maximization + Subsampling + L2 Regularization}} \\
+    \midrule
+    Morphological & ABMIL & $0.453\pm0.000$ & $0.451\pm0.000$ & $0.511\pm0.000$ & $0.515\pm0.000$ & $0.419\pm0.000$ & $0.425\pm0.000$ & $0.359\pm0.000$ & $0.375\pm0.000$ & $0.492\pm0.000$ & $0.494\pm0.000$\\
+    Radiomics & ABMIL & $0.573\pm0.000$ & $0.575\pm0.000$ & $0.586\pm0.000$ & $0.591\pm0.000$ & $0.394\pm0.000$ & $0.403\pm0.000$ & $0.492\pm0.000$ & $0.510\pm0.000$ & $0.473\pm0.000$ & $0.481\pm0.000$\\
+    Topological & ABMIL & $0.442\pm0.000$ & $0.436\pm0.000$ & $0.552\pm0.000$ & $0.569\pm0.000$ & $0.454\pm0.000$ & $0.522\pm0.000$ & $0.543\pm0.000$ & $0.594\pm0.000$ & $0.562\pm0.000$ & $0.572\pm0.000$\\
+    All & ABMIL & $0.569\pm0.000$ & $0.620\pm0.000$ & $0.579\pm0.000$ & $0.596\pm0.000$ & $0.548\pm0.000$ & $0.548\pm0.000$ & $0.420\pm0.000$ & $0.476\pm0.000$ & $0.493\pm0.000$ & $0.511\pm0.000$\\
+    \midrule
+    Morphological & CLAM & $0.470\pm0.000$ & $0.474\pm0.000$ & $0.510\pm0.000$ & $0.520\pm0.000$ & $0.499\pm0.000$ & $0.499\pm0.000$ & $0.394\pm0.000$ & $0.455\pm0.000$ & $0.460\pm0.000$ & $0.461\pm0.000$\\
+    Radiomics & CLAM & $0.559\pm0.000$ & $0.556\pm0.000$ & $0.582\pm0.000$ & $0.593\pm0.000$ & $0.518\pm0.000$ & $0.527\pm0.000$ & $0.513\pm0.000$ & $0.524\pm0.000$ & $0.489\pm0.000$ & $0.492\pm0.000$\\
+    Topological & CLAM & $0.467\pm0.000$ & $0.470\pm0.000$ & $0.559\pm0.000$ & $0.580\pm0.000$ & $0.539\pm0.000$ & $0.576\pm0.000$ & $0.569\pm0.000$ & $0.608\pm0.000$ & $0.513\pm0.000$ & $0.534\pm0.000$\\
+    All & CLAM & $0.536\pm0.000$ & $0.534\pm0.000$ & $0.601\pm0.000$ & $0.605\pm0.000$ & $0.569\pm0.000$ & $0.570\pm0.000$ & $0.476\pm0.000$ & $0.489\pm0.000$ & $0.497\pm0.000$ & $0.512\pm0.000$\\
+    \midrule
+    Morphological & Head4Type & $0.567\pm0.000$ & $0.556\pm0.000$ & $0.575\pm0.000$ & $0.576\pm0.000$ & $0.470\pm0.000$ & $0.509\pm0.000$ & $0.397\pm0.000$ & $0.439\pm0.000$ & $0.453\pm0.000$ & $0.532\pm0.000$\\
+    Radiomics & Head4Type & $0.667\pm0.000$ & $0.699\pm0.000$ & $0.516\pm0.000$ & $0.549\pm0.000$ & $0.464\pm0.000$ & $0.472\pm0.000$ & $0.491\pm0.000$ & $0.496\pm0.000$ & $0.538\pm0.000$ & $0.538\pm0.000$\\
+    Topological & Head4Type & $0.478\pm0.000$ & $0.485\pm0.000$ & $0.516\pm0.000$ & $0.531\pm0.000$ & $0.532\pm0.000$ & $0.563\pm0.000$ & $0.546\pm0.000$ & $0.648\pm0.000$ & $0.569\pm0.000$ & $0.580\pm0.000$\\
+    All & Head4Type & $0.595\pm0.000$ & $0.669\pm0.000$ & $0.583\pm0.000$ & $0.586\pm0.000$ & $0.573\pm0.000$ & $0.578\pm0.000$ & $0.452\pm0.000$ & $0.494\pm0.000$ & $0.481\pm0.000$ & $0.501\pm0.000$\\
+    \midrule
+    \midrule
+\end{longtable}
+}

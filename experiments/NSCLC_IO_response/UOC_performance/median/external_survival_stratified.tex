@@ -1,0 +1,72 @@
+{
+\scriptsize
+\setlength{\tabcolsep}{2pt}
+\renewcommand{\arraystretch}{1.5}
+\begin{longtable}{|p{2.3cm}|C{2cm}||C{2.2cm}|C{2.2cm}|}
+    \toprule
+    \textbf{FEATURES} & \textbf{MODEL} & \multicolumn{1}{|c|}{\textbf{OS}} & \multicolumn{1}{|c|}{\textbf{PFS}}\\
+    \midrule
+     \multicolumn{2}{|c||}{} & C-Index & C-Index\\
+    \midrule
+    \endfirsthead
+    
+    \multicolumn{4}{c}{\textit{(Continued from previous page)}}\\
+    \toprule
+    \textbf{FEATURES} & \textbf{MODEL} & \multicolumn{1}{|c|}{\textbf{OS}} & \multicolumn{1}{|c|}{\textbf{PFS}}\\
+    \midrule
+     \multicolumn{2}{|c||}{} & C-Index & C-Index\\
+    \midrule
+    \endhead
+    
+    \midrule
+    \multicolumn{4}{r}{\textit{(Continued on next page)}}\\
+    \endfoot
+    
+    \midrule
+    \multicolumn{2}{|c||}{\textbf{SUPPORT}} & \multicolumn{1}{c|}{152} & \multicolumn{1}{c|}{152} \\
+    \bottomrule
+    \caption{\textbf{External validation - Survival analysis performance (cell-stratified).}}
+    \label{tab:external_survival_stratified}
+    \endlastfoot
+    
+    \multicolumn{4}{c}{} \\
+    \multicolumn{4}{c}{\textbf{Cell features}} \\
+    \midrule
+    Morphological & ABMIL & $0.429\pm0.000$ & $0.436\pm0.000$\\
+    Radiomics & ABMIL & $0.485\pm0.000$ & $0.509\pm0.000$\\
+    Topological & ABMIL & $0.595\pm0.000$ & $0.630\pm0.000$\\
+    All & ABMIL & $0.541\pm0.000$ & $0.585\pm0.000$\\
+    \midrule
+    Morphological & CLAM & $0.609\pm0.000$ & $0.524\pm0.000$\\
+    Radiomics & CLAM & $0.541\pm0.000$ & $0.523\pm0.000$\\
+    Topological & CLAM & $0.570\pm0.000$ & $0.631\pm0.000$\\
+    All & CLAM & $0.597\pm0.000$ & $0.590\pm0.000$\\
+    \midrule
+    Morphological & Head4Type & $0.554\pm0.000$ & $0.475\pm0.000$\\
+    Radiomics & Head4Type & $0.447\pm0.000$ & $0.507\pm0.000$\\
+    Topological & Head4Type & $0.579\pm0.000$ & $0.613\pm0.000$\\
+    All & Head4Type & $0.575\pm0.000$ & $0.530\pm0.000$\\
+    \midrule
+    \midrule
+    \multicolumn{4}{|c|}{} \\
+    \multicolumn{4}{|c|}{\textbf{Attention Entropy Maximization +}} \\
+    \multicolumn{4}{|c|}{\textbf{Subsampling + L2 Regularization}} \\
+    \midrule
+    Morphological & ABMIL & $0.407\pm0.000$ & $0.435\pm0.000$\\
+    Radiomics & ABMIL & $0.479\pm0.000$ & $0.513\pm0.000$\\
+    Topological & ABMIL & $0.609\pm0.000$ & $0.636\pm0.000$\\
+    All & ABMIL & $0.576\pm0.000$ & $0.580\pm0.000$\\
+    \midrule
+    Morphological & CLAM & $0.484\pm0.000$ & $0.525\pm0.000$\\
+    Radiomics & CLAM & $0.541\pm0.000$ & $0.525\pm0.000$\\
+    Topological & CLAM & $0.543\pm0.000$ & $0.628\pm0.000$\\
+    All & CLAM & $0.597\pm0.000$ & $0.581\pm0.000$\\
+    \midrule
+    Morphological & Head4Type & $0.567\pm0.000$ & $0.513\pm0.000$\\
+    Radiomics & Head4Type & $0.480\pm0.000$ & $0.504\pm0.000$\\
+    Topological & Head4Type & $0.562\pm0.000$ & $0.588\pm0.000$\\
+    All & Head4Type & $0.556\pm0.000$ & $0.546\pm0.000$\\
+    \midrule
+    \midrule
+\end{longtable}
+}

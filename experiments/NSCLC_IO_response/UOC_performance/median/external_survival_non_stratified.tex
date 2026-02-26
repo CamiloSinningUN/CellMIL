@@ -1,0 +1,96 @@
+{
+\scriptsize
+\setlength{\tabcolsep}{2pt}
+\renewcommand{\arraystretch}{1.5}
+\begin{longtable}{|p{2.3cm}|C{2cm}||C{2.2cm}|C{2.2cm}|}
+    \toprule
+    \textbf{FEATURES} & \textbf{MODEL} & \multicolumn{1}{|c|}{\textbf{OS}} & \multicolumn{1}{|c|}{\textbf{PFS}}\\
+    \midrule
+     \multicolumn{2}{|c||}{} & C-Index & C-Index\\
+    \midrule
+    \endfirsthead
+    
+    \multicolumn{4}{c}{\textit{(Continued from previous page)}}\\
+    \toprule
+    \textbf{FEATURES} & \textbf{MODEL} & \multicolumn{1}{|c|}{\textbf{OS}} & \multicolumn{1}{|c|}{\textbf{PFS}}\\
+    \midrule
+     \multicolumn{2}{|c||}{} & C-Index & C-Index\\
+    \midrule
+    \endhead
+    
+    \midrule
+    \multicolumn{4}{r}{\textit{(Continued on next page)}}\\
+    \endfoot
+    
+    \midrule
+    \multicolumn{2}{|c||}{\textbf{SUPPORT}} & \multicolumn{1}{c|}{152} & \multicolumn{1}{c|}{152} \\
+    \bottomrule
+    \caption{\textbf{External validation - Survival analysis performance.}}
+    \label{tab:external_survival}
+    \endlastfoot
+    
+    \multicolumn{4}{c}{} \\
+    \multicolumn{4}{c}{\textbf{Patch Embeddings (Baseline)}} \\
+    \midrule
+    ResNet50 & ABMIL & $0.571\pm0.000$ & $0.584\pm0.000$\\
+    GigaPath & ABMIL & $0.522\pm0.000$ & $0.563\pm0.000$\\
+    UNI & ABMIL & $0.572\pm0.000$ & $0.568\pm0.000$\\
+    \midrule
+    ResNet50 & CLAM & $0.553\pm0.000$ & $0.616\pm0.000$\\
+    GigaPath & CLAM & $0.585\pm0.000$ & $0.525\pm0.000$\\
+    UNI & CLAM & $0.550\pm0.000$ & $0.512\pm0.000$\\
+    \midrule
+    \multicolumn{4}{|c|}{} \\
+    \multicolumn{4}{|c|}{\textbf{Attention Entropy Maximization +}} \\
+    \multicolumn{4}{|c|}{\textbf{Subsampling + L2 Regularization}} \\
+    \midrule
+    ResNet50 & ABMIL & $0.520\pm0.000$ & $0.477\pm0.000$\\
+    GigaPath & ABMIL & $0.520\pm0.000$ & $0.587\pm0.000$\\
+    UNI & ABMIL & $0.571\pm0.000$ & $0.511\pm0.000$\\
+    \midrule
+    ResNet50 & CLAM & $0.552\pm0.000$ & $0.540\pm0.000$\\
+    GigaPath & CLAM & $0.524\pm0.000$ & $0.499\pm0.000$\\
+    UNI & CLAM & $0.573\pm0.000$ & $0.527\pm0.000$\\
+    \midrule
+    \midrule
+    \multicolumn{4}{c}{} \\
+    \multicolumn{4}{c}{\textbf{Cell features}} \\
+    \midrule
+    Morphological & ABMIL & $0.417\pm0.000$ & $0.450\pm0.000$\\
+    Radiomics & ABMIL & $0.484\pm0.000$ & $0.510\pm0.000$\\
+    Topological & ABMIL & $0.615\pm0.000$ & $0.640\pm0.000$\\
+    All & ABMIL & $0.592\pm0.000$ & $0.605\pm0.000$\\
+    \midrule
+    Morphological & CLAM & $0.568\pm0.000$ & $0.539\pm0.000$\\
+    Radiomics & CLAM & $0.430\pm0.000$ & $0.566\pm0.000$\\
+    Topological & CLAM & $0.577\pm0.000$ & $0.631\pm0.000$\\
+    All & CLAM & $0.571\pm0.000$ & $0.621\pm0.000$\\
+    \midrule
+    Morphological & Head4Type & $0.459\pm0.000$ & $0.526\pm0.000$\\
+    Radiomics & Head4Type & $0.470\pm0.000$ & $0.485\pm0.000$\\
+    Topological & Head4Type & $0.614\pm0.000$ & \boldmath{$0.645\pm0.000$}\\
+    All & Head4Type & $0.577\pm0.000$ & $0.570\pm0.000$\\
+    \midrule
+    \midrule
+    \multicolumn{4}{|c|}{} \\
+    \multicolumn{4}{|c|}{\textbf{Attention Entropy Maximization +}} \\
+    \multicolumn{4}{|c|}{\textbf{Subsampling + L2 Regularization}} \\
+    \midrule
+    Morphological & ABMIL & $0.479\pm0.000$ & $0.463\pm0.000$\\
+    Radiomics & ABMIL & $0.495\pm0.000$ & $0.519\pm0.000$\\
+    Topological & ABMIL & \boldmath{$0.619\pm0.000$} & $0.645\pm0.000$\\
+    All & ABMIL & $0.585\pm0.000$ & $0.597\pm0.000$\\
+    \midrule
+    Morphological & CLAM & $0.595\pm0.000$ & $0.464\pm0.000$\\
+    Radiomics & CLAM & $0.462\pm0.000$ & $0.511\pm0.000$\\
+    Topological & CLAM & $0.602\pm0.000$ & $0.623\pm0.000$\\
+    All & CLAM & $0.603\pm0.000$ & $0.618\pm0.000$\\
+    \midrule
+    Morphological & Head4Type & $0.503\pm0.000$ & $0.555\pm0.000$\\
+    Radiomics & Head4Type & $0.464\pm0.000$ & $0.492\pm0.000$\\
+    Topological & Head4Type & $0.611\pm0.000$ & $0.643\pm0.000$\\
+    All & Head4Type & $0.566\pm0.000$ & $0.586\pm0.000$\\
+    \midrule
+    \midrule
+\end{longtable}
+}

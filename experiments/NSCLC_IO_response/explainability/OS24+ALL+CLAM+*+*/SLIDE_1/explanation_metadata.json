@@ -1,0 +1,40 @@
+{
+    "model": "CLAM",
+    "metadata": {
+        "n_classes": 1,
+        "n_instances": 46415,
+        "has_multi_class": false
+    },
+    "attention_keys": [
+        "class_0_attention"
+    ],
+    "shape_info": {
+        "class_0_attention": [
+            1,
+            46415
+        ]
+    },
+    "config": {
+        "output_path": "SLIDE_1",
+        "attention_aggregation": "pooling_only",
+        "gnn_layer_index": null,
+        "class_index": null,
+        "attention_head": null,
+        "visualization_mode": "graph",
+        "color_scheme": [
+            [
+                35,
+                92,
+                236
+            ],
+            [
+                255,
+                0,
+                0
+            ]
+        ],
+        "normalize_attention": true,
+        "normalization": "min_max",
+        "visualize_cell_types": false
+    }
+}

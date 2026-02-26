@@ -1,0 +1,65 @@
+{
+    "model": "Head4Type",
+    "metadata": {
+        "n_heads": 5,
+        "n_instances": 46415,
+        "has_multi_head": true
+    },
+    "attention_keys": [
+        "mean_attention",
+        "head_0_attention",
+        "head_1_attention",
+        "head_2_attention",
+        "head_3_attention",
+        "head_4_attention"
+    ],
+    "shape_info": {
+        "mean_attention": [
+            1,
+            46415
+        ],
+        "head_0_attention": [
+            1,
+            46415
+        ],
+        "head_1_attention": [
+            1,
+            46415
+        ],
+        "head_2_attention": [
+            1,
+            46415
+        ],
+        "head_3_attention": [
+            1,
+            46415
+        ],
+        "head_4_attention": [
+            1,
+            46415
+        ]
+    },
+    "config": {
+        "output_path": "SLIDE_1",
+        "attention_aggregation": "pooling_only",
+        "gnn_layer_index": null,
+        "class_index": null,
+        "attention_head": null,
+        "visualization_mode": "graph",
+        "color_scheme": [
+            [
+                35,
+                92,
+                236
+            ],
+            [
+                255,
+                0,
+                0
+            ]
+        ],
+        "normalize_attention": true,
+        "normalization": "min_max",
+        "visualize_cell_types": false
+    }
+}

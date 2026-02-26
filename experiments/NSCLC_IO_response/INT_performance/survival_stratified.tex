@@ -1,0 +1,72 @@
+{
+\scriptsize
+\setlength{\tabcolsep}{2pt}
+\renewcommand{\arraystretch}{1.5}
+\begin{longtable}{|p{2.3cm}|C{2cm}||C{2.2cm}|C{2.2cm}|}
+    \toprule
+    \textbf{FEATURES} & \textbf{MODEL} & \multicolumn{1}{|c|}{\textbf{OS}} & \multicolumn{1}{|c|}{\textbf{PFS}}\\
+    \midrule
+     \multicolumn{2}{|c||}{} & C-Index & C-Index\\
+    \midrule
+    \endfirsthead
+    
+    \multicolumn{4}{c}{\textit{(Continued from previous page)}}\\
+    \toprule
+    \textbf{FEATURES} & \textbf{MODEL} & \multicolumn{1}{|c|}{\textbf{OS}} & \multicolumn{1}{|c|}{\textbf{PFS}}\\
+    \midrule
+     \multicolumn{2}{|c||}{} & C-Index & C-Index\\
+    \midrule
+    \endhead
+    
+    \midrule
+    \multicolumn{4}{r}{\textit{(Continued on next page)}}\\
+    \endfoot
+    
+    \midrule
+    \multicolumn{2}{|c||}{\textbf{SUPPORT}} & \multicolumn{1}{c|}{343} & \multicolumn{1}{c|}{343} \\
+    \bottomrule
+    \caption{\textbf{Survival analysis performance across survival tasks (cell-stratified).} Performance measured by Concordance Index (C-Index) for survival prediction tasks. Results show mean $\pm$ standard deviation across label-stratified 5-fold cross-validation with additional stratification by cell cardinality. ``All'' refers to the use of all feature groups with correlation filtering ($\rho < 0.95$). Bold values indicate best performance per task.}
+    \label{tab:results_survival_stratified}
+    \endlastfoot
+    
+    \multicolumn{4}{c}{} \\
+    \multicolumn{4}{c}{\textbf{Cell features}} \\
+    \midrule
+    Morphological & ABMIL & $0.543\pm0.037$ & $0.545\pm0.047$\\
+    Radiomics & ABMIL & $0.521\pm0.051$ & $0.552\pm0.021$\\
+    Topological & ABMIL & $0.533\pm0.017$ & $0.550\pm0.044$\\
+    All & ABMIL & $0.528\pm0.024$ & $0.564\pm0.024$\\
+    \midrule
+    Morphological & CLAM & $0.512\pm0.043$ & $0.496\pm0.041$\\
+    Radiomics & CLAM & $0.543\pm0.016$ & $0.531\pm0.062$\\
+    Topological & CLAM & $0.533\pm0.032$ & $0.526\pm0.044$\\
+    All & CLAM & $0.530\pm0.021$ & $0.534\pm0.021$\\
+    \midrule
+    Morphological & Head4Type & $0.489\pm0.047$ & $0.490\pm0.047$\\
+    Radiomics & Head4Type & $0.499\pm0.020$ & $0.519\pm0.029$\\
+    Topological & Head4Type & $0.521\pm0.037$ & $0.511\pm0.011$\\
+    All & Head4Type & $0.512\pm0.024$ & $0.529\pm0.037$\\
+    \midrule
+    \midrule
+    \multicolumn{4}{|c|}{} \\
+    \multicolumn{4}{|c|}{\textbf{Attention Entropy Maximization +}} \\
+    \multicolumn{4}{|c|}{\textbf{Subsampling + L2 Regularization}} \\
+    \midrule
+    Morphological & ABMIL & $0.541\pm0.036$ & $0.547\pm0.047$\\
+    Radiomics & ABMIL & $0.517\pm0.049$ & $0.550\pm0.021$\\
+    Topological & ABMIL & $0.534\pm0.019$ & $0.539\pm0.032$\\
+    All & ABMIL & $0.527\pm0.024$ & $0.565\pm0.023$\\
+    \midrule
+    Morphological & CLAM & $0.500\pm0.055$ & $0.498\pm0.034$\\
+    Radiomics & CLAM & $0.541\pm0.018$ & $0.528\pm0.062$\\
+    Topological & CLAM & $0.540\pm0.039$ & $0.518\pm0.046$\\
+    All & CLAM & $0.535\pm0.029$ & $0.533\pm0.021$\\
+    \midrule
+    Morphological & Head4Type & $0.496\pm0.048$ & $0.467\pm0.032$\\
+    Radiomics & Head4Type & $0.504\pm0.023$ & $0.519\pm0.040$\\
+    Topological & Head4Type & $0.515\pm0.040$ & $0.526\pm0.038$\\
+    All & Head4Type & $0.503\pm0.021$ & $0.532\pm0.032$\\
+    \midrule
+    \midrule
+\end{longtable}
+}
