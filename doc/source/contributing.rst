@@ -13,8 +13,8 @@ Getting Started
 
    .. code-block:: bash
 
-      git clone https://github.com/YOUR_USERNAME/Thesis.git
-      cd Thesis
+      git clone https://github.com/YOUR_USERNAME/CellMIL.git
+      cd CellMIL
 
 2. **Set Up Development Environment**
 
