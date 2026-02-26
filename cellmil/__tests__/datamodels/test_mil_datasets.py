@@ -110,7 +110,7 @@ class TestMILDatasets:
         plot_filename = (
             f"plot_mil_{test_name}_{plot_type}_{hash(f'{test_name}_{plot_type}')}.png"
         )
-        return f"/home/camilo/Thesis/test_reports/{plot_filename}"
+        return f"/tmp/test_reports/{plot_filename}"
 
     def _save_distribution_plots(self, data: torch.Tensor, title: str, plot_path: str):
         """Create and save distribution plots for features"""

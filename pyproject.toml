@@ -2,7 +2,7 @@
 name = "cellmil"
 version = "0.1.0"
 description = "cell instance segmentation for multiple instance learning in digital pathology"
-authors = [{ name = "CamiloSinningUN", email = "camilosinning.cs@gmail.com" }]
+authors = [{ name = "Anonymous Author", email = "anonymous@example.com" }]
 readme = "README.md"
 requires-python = ">=3.10, <3.13"
 dependencies = [
@@ -56,7 +56,7 @@ dependencies = [
     "scikit-survival (>=0.25.0,<0.26.0)",
     "lifelines (>=0.30.0,<0.31.0)",
     "shap (==0.49.1)",
-    "transformers (>=5.1.0,<6.0.0)"
+    "transformers (>=5.1.0,<6.0.0)",
 ]
 
 [tool.poetry]
@@ -91,13 +91,13 @@ url = "https://data.pyg.org/whl/torch-2.7.0+cu118.html"
 priority = "explicit"
 
 [tool.poetry.dependencies]
-torch = {source = "torch-cu118"}
-torchvision = {source = "torch-cu118"}
-torchaudio = {source = "torch-cu118"}
-torch-cluster = {source = "pyg-cu118"}
-torch-sparse = {source = "pyg-cu118"}
-torch-scatter = {source = "pyg-cu118"}
-pyg-lib = {source = "pyg-cu118"}
+torch = { source = "torch-cu118" }
+torchvision = { source = "torch-cu118" }
+torchaudio = { source = "torch-cu118" }
+torch-cluster = { source = "pyg-cu118" }
+torch-sparse = { source = "pyg-cu118" }
+torch-scatter = { source = "pyg-cu118" }
+pyg-lib = { source = "pyg-cu118" }
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

@@ -975,9 +975,9 @@ def load_roi_for_slide(
     Load ROI data for a specific slide.
 
     Args:
-        slide_name: Name of the slide (DIG_PAT_XXXXXXXX format)
+        slide_name: Name of the slide (SLIDE_ID format)
         roi_folder: Path to directory containing ROI CSV files
-        metadata: DataFrame containing 'ID', 'I3LUNG_ID', and 'CENTER' columns
+        metadata: DataFrame containing 'ID', 'SLIDE_ID', and 'CENTER' columns
 
     Returns:
         DataFrame with ROI coordinates or None if not found
@@ -988,7 +988,7 @@ def load_roi_for_slide(
         if slide_row.empty:
             raise ValueError(f"Slide {slide_name} not found in metadata")
 
-        i3lung_id = cast(str, slide_row["I3LUNG_ID"].values[0])  # type: ignore
+        slide_id = cast(str, slide_row["SLIDE_ID"].values[0])  # type: ignore
         center = cast(str, slide_row["CENTER"].values[0])  # type: ignore
 
         # Map center to folder name
@@ -1009,12 +1009,12 @@ def load_roi_for_slide(
         roi_path = None
         if isinstance(folder, list):
             for f in folder:
-                potential_path = roi_folder / f / f"{i3lung_id}.csv"
+                potential_path = roi_folder / f / f"{slide_id}.csv"
                 if potential_path.exists():
                     roi_path = potential_path
                     break
         else:
-            potential_path = roi_folder / folder / f"{i3lung_id}.csv"
+            potential_path = roi_folder / folder / f"{slide_id}.csv"
             if potential_path.exists():
                 roi_path = potential_path
 

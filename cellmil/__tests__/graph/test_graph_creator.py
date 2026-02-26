@@ -173,7 +173,7 @@ class TestGraphCreator:
 
         # Save plot to file instead of base64 to ensure it shows up
         plot_filename = f"plot_{method_name}_{hash(title)}.png"
-        plot_path = f"/home/camilo/Thesis/test_reports/{plot_filename}"
+        plot_path = f"/tmp/test_reports/{plot_filename}"
         plt.savefig(plot_path, format="png", dpi=150, bbox_inches="tight")  # type: ignore
         plt.close()
 

@@ -136,7 +136,7 @@ class TestGNNMILDatasets:
     def _create_plot_path(self, test_name: str, plot_type: str) -> str:
         """Create standardized plot path"""
         plot_filename = f"plot_gnn_mil_{test_name}_{plot_type}_{hash(f'{test_name}_{plot_type}')}.png"
-        return f"/home/camilo/Thesis/test_reports/{plot_filename}"
+        return f"/tmp/test_reports/{plot_filename}"
 
     def _save_graph_features_plot(
         self,

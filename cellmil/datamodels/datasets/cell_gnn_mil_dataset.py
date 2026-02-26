@@ -97,7 +97,7 @@ class CellGNNMILDataset(InMemoryDataset):
             centroid: Whether to include centroid features
             roi_folder: Optional path to the directory containing ROI CSV files organized by center folders.
                 If provided, cells will be filtered to only include those within ROI boundaries.
-                Requires 'ID', 'I3LUNG_ID', and 'CENTER' columns in the data DataFrame.
+                Requires 'ID', 'SLIDE_ID', and 'CENTER' columns in the data DataFrame.
                 Slides with no cells in ROI will be excluded from the dataset.
             max_workers: Number of worker threads
             transform: A function/transform that takes in a Data object and returns a transformed version
@@ -137,7 +137,7 @@ class CellGNNMILDataset(InMemoryDataset):
                 raise ValueError(f"ROI folder does not exist: {self.roi_folder}")
 
             # Check if data DataFrame has required columns for ROI filtering
-            required_roi_columns = ["ID", "I3LUNG_ID", "CENTER"]
+            required_roi_columns = ["ID", "SLIDE_ID", "CENTER"]
             missing_columns = [
                 col for col in required_roi_columns if col not in data.columns
             ]

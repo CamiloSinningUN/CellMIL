@@ -52,7 +52,7 @@ class TestCLAMComponents:
         plot_filename = (
             f"plot_clam_{test_name}_{plot_type}_{hash(f'{test_name}_{plot_type}')}.png"
         )
-        return f"/home/camilo/Thesis/test_reports/{plot_filename}"
+        return f"/tmp/test_reports/{plot_filename}"
 
     def _save_attention_visualization(
         self, attention_weights: torch.Tensor, title: str, plot_path: str

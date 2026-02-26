@@ -85,7 +85,7 @@ class CellMILDataset(
                 - A single string (e.g., "dcr") for classification tasks
                 - A tuple of two strings (e.g., ("duration", "event")) for survival prediction tasks
             folder: Path to the dataset folder
-            data: DataFrame containing metadata. If roi_folder is provided, must contain 'ID', 'I3LUNG_ID', and 'CENTER' columns.
+            data: DataFrame containing metadata. If roi_folder is provided, must contain 'ID', 'SLIDE_ID', and 'CENTER' columns.
             extractor: Feature extractor type or list of types to use for feature extraction.
             graph_creator: Optional graph creator type, needed for some extractors
             segmentation_model: Optional Segmentation model type, needed for some extractors
@@ -97,7 +97,7 @@ class CellMILDataset(
                 If provided, only cells of these types will be included. Requires cell_type=True.
             roi_folder: Optional path to the directory containing ROI CSV files organized by center folders.
                 If provided, cells will be filtered to only include those within ROI boundaries.
-                Requires 'ID', 'I3LUNG_ID', and 'CENTER' columns in the data DataFrame.
+                Requires 'ID', 'SLIDE_ID', and 'CENTER' columns in the data DataFrame.
                 Slides with no cells matching these types will be excluded from the dataset.
             return_cell_types: Whether to return cell types in __getitem__. If False, only returns (features, label).
                 If True and cell_type=True, returns (features, cell_types, label). Default is True for backward compatibility.
@@ -135,7 +135,7 @@ class CellMILDataset(
                 raise ValueError(f"ROI folder does not exist: {self.roi_folder}")
 
             # Check if data DataFrame has required columns for ROI filtering
-            required_roi_columns = ["ID", "I3LUNG_ID", "CENTER"]
+            required_roi_columns = ["ID", "SLIDE_ID", "CENTER"]
             missing_columns = [
                 col for col in required_roi_columns if col not in data.columns
             ]
