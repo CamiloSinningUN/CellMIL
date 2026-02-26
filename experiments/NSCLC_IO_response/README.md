@@ -5,7 +5,7 @@ This experiment demonstrates the complete CellMIL pipeline applied to Non-Small 
 > **Dataset Availability**: The datasets used in this experiment are private and cannot be provided publicly due to institutional data protection policies.
 
 > **Experiment Tracking**: All training runs, metrics, and hyperparameters are publicly available on Weights & Biases:  
-> [https://wandb.ai/camilosinning-cs-politecnico-di-milano/CELLMIL](https://wandb.ai/camilosinning-cs-politecnico-di-milano/CELLMIL)
+> [https://wandb.ai/[ANONYMOUS]/CELLMIL](https://wandb.ai/[ANONYMOUS]/CELLMIL)
 
 ## Experiment Overview
 
@@ -32,7 +32,8 @@ This study evaluates cell-level histopathology features for predicting immunothe
 
 ## Model Weights
 
-Pre-trained model weights for all experiments are provided as release assets in the [v0.0.1-alpha release](https://github.com/CamiloSinningUN/CellMIL/releases/tag/v0.0.1-alpha).
+Pre-trained model weights for all experiments are available on Zenodo:  
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18791894.svg)](https://doi.org/10.5281/zenodo.18791894)
 
 ### Downloading and setting up weights
 
@@ -43,11 +44,7 @@ The weights are split by prediction task into 7 zip archives. Download the ones 
 mkdir -p results
 
 # Download a specific group (example: OS survival task)
-gh release download v0.0.1-alpha \
-  --repo CamiloSinningUN/CellMIL \
-  --pattern "results_OS.zip" \
-  --dir .
-
+wget https://zenodo.org/records/18791894/files/results_OS.zip
 unzip results_OS.zip -d results/
 rm results_OS.zip
 ```
@@ -58,16 +55,13 @@ To download and extract **all groups** at once:
 mkdir -p results
 
 for GROUP in ADENOvsSQUA DCR OS OS6 OS24 PDL1 PFS; do
-    gh release download v0.0.1-alpha \
-      --repo CamiloSinningUN/CellMIL \
-      --pattern "results_${GROUP}.zip" \
-      --dir .
+    wget https://zenodo.org/records/18791894/files/results_${GROUP}.zip
     unzip "results_${GROUP}.zip" -d results/
     rm "results_${GROUP}.zip"
 done
 ```
 
-> **Note**: Requires the [GitHub CLI (`gh`)](https://cli.github.com/) and authentication (`gh auth login`). Alternatively, download the zip files manually from the [release page](https://github.com/CamiloSinningUN/CellMIL/releases/tag/v0.0.1-alpha) and unzip them into `results/`.
+> **Note**: Alternatively, download the zip files manually from [Zenodo](https://doi.org/10.5281/zenodo.18791894) and unzip them into `results/`.
 
 Each archive contains trained model checkpoints organized by experiment name following the `[LABEL]+[FEATURES]+[MODEL]+[REG]+[STRA]` convention (see [Script Naming Convention](#script-naming-convention)). Once extracted, the evaluation scripts (`INT_performance.sh`, `UOC_performance.sh`) and explainability scripts can be run directly against them.
 
@@ -123,4 +117,4 @@ Training scripts and result folders follow a systematic naming convention:
 
 ---
 
-For general CellMIL usage and documentation, see the [main README](../../README.md) and [full documentation](https://camilosinningun.github.io/CellMIL/).
+For general CellMIL usage and documentation, see the [main README](../../README.md) and [full documentation](https://cellmil.netlify.app/).

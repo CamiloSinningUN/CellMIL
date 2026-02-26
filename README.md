@@ -2,7 +2,7 @@
 
 ![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)
 ![PyTorch 2.7.1](https://img.shields.io/badge/pytorch-2.7.1-orange.svg)
-[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://camilosinningun.github.io/CellMIL/)
+[![Documentation](https://img.shields.io/badge/docs-online-blue)](https://cellmil.netlify.app/)
 
 A Controllable and Flexible Multiple Instance Learning Framework for Explainable Digital Pathology Using Cell-Level Features.
 
@@ -11,7 +11,7 @@ A Controllable and Flexible Multiple Instance Learning Framework for Explainable
 
 ---
 
-📚 **For comprehensive documentation, tutorials, and API reference, visit our [official documentation](https://camilosinningun.github.io/CellMIL/).**  
+📚 **For comprehensive documentation, tutorials, and API reference, visit our [official documentation](https://cellmil.netlify.app/).**  
 This README provides a quick overview and getting started guide. For detailed information on each component, advanced usage, and examples, please refer to the full documentation.
 
 ---
@@ -69,7 +69,7 @@ For users who want to modify the code or contribute to the project. This is the 
 #### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/CamiloSinningUN/CellMIL.git
+git clone https://github.com/[ANONYMOUS]/CellMIL.git
 cd CellMIL
 ```
 
@@ -149,7 +149,7 @@ pip install pyradiomics --no-build-isolation
 
 ## CLI Tools
 
-Every step of the pipeline can be executed using the provided CLI tools. Bellow there is a brief description of each step along with example commands. For a more detailed description of each command please refer to the documentation [here](https://camilosinningun.github.io/CellMIL/).
+Every step of the pipeline can be executed using the provided CLI tools. Bellow there is a brief description of each step along with example commands. For a more detailed description of each command please refer to the documentation [here](https://cellmil.netlify.app/).
 
 > ℹ️ **Note:** Options marked with ⭐ are recommended defaults based on best practices and empirical results.
 
@@ -254,7 +254,7 @@ vis_features --dataset ./results
 After doing experiments this command will generate a report with series of plots with the evaluation metrics obtained:
 
 ```bash
-eval_report --metrics f1 recall auroc c_index --team camilosinning-cs-politecnico-di-milano --projects 'CELLMIL' --output-dir ../evaluation_reports
+eval_report --metrics f1 recall auroc c_index --team [ANONYMOUS] --projects 'CELLMIL' --output-dir ../evaluation_reports
 ```
 
 Metric options:
@@ -356,7 +356,7 @@ k_fold = KFoldCrossValidation(
 k_fold.run()
 ```
 
-For detailed instructions on model configuration, hyperparameter tuning, and advanced training options, refer to the [MIL Training Documentation](https://camilosinningun.github.io/CellMIL/pipeline/mil_training/index.html).
+For detailed instructions on model configuration, hyperparameter tuning, and advanced training options, refer to the [MIL Training Documentation](https://cellmil.netlify.app/pipeline/mil_training/index.html).
 
 ## Explainability
 
@@ -437,7 +437,7 @@ results = shap_explainer.generate_explanation(
 )
 ```
 
-For more details on visualization options, normalization methods, and interpretation, see the [Explainability Documentation](https://camilosinningun.github.io/CellMIL/explainability.html).
+For more details on visualization options, normalization methods, and interpretation, see the [Explainability Documentation](https://cellmil.netlify.app/explainability.html).
 
 ## Example Use Case
 
@@ -461,7 +461,7 @@ The `create_dataset` command requires an Excel file (`.xlsx`) with slide metadat
 |--------|----------|-------------|
 | `PATH` | ✅ | Absolute path to the WSI file |
 
-> **Note:** The pipeline currently only supports **40x magnification**. For details on training with labels and other configurations, please refer to the [documentation](https://camilosinningun.github.io/CellMIL/).
+> **Note:** The pipeline currently only supports **40x magnification**. For details on training with labels and other configurations, please refer to the [documentation](https://cellmil.netlify.app/).
 
 Example:
 
@@ -545,7 +545,7 @@ cd doc
 make html
 ```
 
-Documentation is available at: [https://camilosinningun.github.io/CellMIL/](https://camilosinningun.github.io/CellMIL/)
+Documentation is available at: [https://cellmil.netlify.app/](https://cellmil.netlify.app/)
 
 ## References
 
@@ -617,4 +617,4 @@ Images used in documentation are from this dataset:
 
 ## Contributions
 
-* [Camilo José Sinning López](https://github.com/CamiloSinningUN)
+* [Anonymous]
