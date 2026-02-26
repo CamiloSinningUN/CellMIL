@@ -30,6 +30,49 @@ This study evaluates cell-level histopathology features for predicting immunothe
 
 - **Training configurations**: With/without regularization and cell stratification
 
+## Model Weights
+
+Pre-trained model weights for all experiments are provided as release assets in the [v0.0.1-alpha release](https://github.com/CamiloSinningUN/CellMIL/releases/tag/v0.0.1-alpha).
+
+### Downloading and setting up weights
+
+The weights are split by prediction task into 7 zip archives. Download the ones you need and extract them into the `results/` folder inside this directory:
+
+```bash
+# From the NSCLC_IO_response/ directory
+mkdir -p results
+
+# Download a specific group (example: OS survival task)
+gh release download v0.0.1-alpha \
+  --repo CamiloSinningUN/CellMIL \
+  --pattern "results_OS.zip" \
+  --dir .
+
+unzip results_OS.zip -d results/
+rm results_OS.zip
+```
+
+To download and extract **all groups** at once:
+
+```bash
+mkdir -p results
+
+for GROUP in ADENOvsSQUA DCR OS OS6 OS24 PDL1 PFS; do
+    gh release download v0.0.1-alpha \
+      --repo CamiloSinningUN/CellMIL \
+      --pattern "results_${GROUP}.zip" \
+      --dir .
+    unzip "results_${GROUP}.zip" -d results/
+    rm "results_${GROUP}.zip"
+done
+```
+
+> **Note**: Requires the [GitHub CLI (`gh`)](https://cli.github.com/) and authentication (`gh auth login`). Alternatively, download the zip files manually from the [release page](https://github.com/CamiloSinningUN/CellMIL/releases/tag/v0.0.1-alpha) and unzip them into `results/`.
+
+Each archive contains trained model checkpoints organized by experiment name following the `[LABEL]+[FEATURES]+[MODEL]+[REG]+[STRA]` convention (see [Script Naming Convention](#script-naming-convention)). Once extracted, the evaluation scripts (`INT_performance.sh`, `UOC_performance.sh`) and explainability scripts can be run directly against them.
+
+---
+
 ## Directory Structure
 
 ```
