@@ -36,7 +36,7 @@ For users who want to modify the code or contribute to the project. This is the 
 
 .. code-block:: bash
 
-   git clone https://github.com/CamiloSinningUN/CellMIL.git
+   git clone https://github.com/[ANONYMOUS]/CellMIL.git
    cd CellMIL
 
 **2. Create Conda Environment**

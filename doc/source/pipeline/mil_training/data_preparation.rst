@@ -340,7 +340,7 @@ Filter cells to only those within specific regions of interest:
        root=ROOT,
        label="DCR",
        folder=DATASET_FOLDER,
-       data=df,  # Must contain 'ID', 'I3LUNG_ID', 'CENTER' columns
+       data=df,  # Must contain 'ID', 'SLIDE_ID', 'CENTER' columns
        extractor=extractors,
        segmentation_model=ModelType.cellvit,
        roi_folder=Path("./data/rois"),  # Folder with ROI CSV files

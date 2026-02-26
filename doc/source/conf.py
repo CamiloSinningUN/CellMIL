@@ -14,8 +14,8 @@ sys.path.insert(0, os.path.abspath("../../../"))
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "cellmil"
-copyright = "2025, CamiloSinning"
-author = "CamiloSinning"
+copyright = "2025, Anonymous"
+author = "Anonymous"
 release = "0.1.0"
 version = "0.1.0"
 
@@ -87,7 +87,7 @@ html_theme_options: dict[str, Any] = {
     "color_mode": "light",
     "accent_color": "blue",
     "globaltoc_expand_depth": 1,
-    "github_url": "https://github.com/CamiloSinningUN/CellMIL",
+    "github_url": "https://github.com/[ANONYMOUS]/CellMIL",
     "nav_links": [
         {
             "title": "Installation",
