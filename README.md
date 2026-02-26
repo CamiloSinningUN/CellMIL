@@ -5,8 +5,11 @@
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://camilosinningun.github.io/CellMIL/)
 
 A flexible and modular framework for cell-level feature extraction and interaction modeling in a Multiple Instance Learning pipeline for digital pathology.
-
-![CellMIL Overview](static/overview_inv.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="static/overview_inv.png">
+  <source media="(prefers-color-scheme: light)" srcset="static/overview.png">
+  <img alt="CellMIL Overview" src="static/overview.png">
+</picture>
 
 ## Table of Contents
 
