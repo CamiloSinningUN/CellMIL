@@ -95,23 +95,23 @@ Basic Usage
 
    graph_creation  --method delaunay_radius --gpu 0 --patched_slide_path ./results/SLIDE_1  --segmentation_model cellvit
 
-   4.1. **Morphological features**:
+4. **Morphological features**:
 
-   .. code-block:: bash
+.. code-block:: bash
 
-      feature_extraction  --extractor pyradiomics_hed  --patched_slide_path ./results/SLIDE_1  --segmentation_model cellvit
+   feature_extraction  --extractor pyradiomics_hed  --patched_slide_path ./results/SLIDE_1  --segmentation_model cellvit
 
-   4.2. **Topological features**:
+5. **Topological features**:
 
-   .. code-block:: bash
+.. code-block:: bash
 
-      feature_extraction  --extractor connectivity --patched_slide_path ./results/SLIDE_1  --segmentation_model cellvit --graph_method delaunay_radius
+   feature_extraction  --extractor connectivity --patched_slide_path ./results/SLIDE_1  --segmentation_model cellvit --graph_method delaunay_radius
 
-   4.3. **Embedding features**:
+6. **Embedding features**:
 
-   .. code-block:: bash
+.. code-block:: bash
 
-      feature_extraction  --extractor resnet50 --patched_slide_path ./results/SLIDE_1 
+   feature_extraction  --extractor resnet50 --patched_slide_path ./results/SLIDE_1 
 
 Documentation Contents
 ======================
