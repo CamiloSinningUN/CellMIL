@@ -21,3 +21,5 @@ h6 {
 .highlight > pre {
     background-color: rgba(65, 217, 255, 0.164) !important;
 }
+
+.js-theme { display: none; }
