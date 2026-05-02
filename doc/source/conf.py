@@ -82,6 +82,14 @@ html_css_files = ["custom.css"]
 html_logo = "_static/logo.png"
 html_favicon = "_static/logo.png"
 
+html_extra_head = [
+    """
+    <script>
+    document.documentElement.setAttribute("data-theme", "light");
+    </script>
+    """,
+]
+
 # Theme options
 html_theme_options: dict[str, Any] = {
     "color_mode": "light",
