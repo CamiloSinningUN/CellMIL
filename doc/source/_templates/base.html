@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html {% if language is not none %}lang="{{ language }}"{% endif %} data-accent-color="{{ theme_accent_color }}" data-content_root="{{ content_root }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  {%- block htmltitle -%}
+    {%- if not docstitle -%}
+      <title>{{ title|striptags|e }}</title>
+    {%- elif pagename == root_doc -%}
+      <title>{{ docstitle|striptags|e }}</title>
+    {%- else -%}
+      <title>{{ title|striptags|e }} - {{ docstitle|striptags|e }}</title>
+    {%- endif -%}
+  {%- endblock -%}
+
+  {%- if favicon_url -%}
+    <link rel="shortcut icon" href="{{ favicon_url|e }}"/>
+  {%- endif -%}
+
+  {%- block linktags %}
+    {%- if hasdoc('about') -%}
+      <link rel="author" title="{{ _('About these documents') }}" href="{{ pathto('about') }}" />
+    {%- endif -%}
+
+    {%- if hasdoc('genindex') -%}
+      <link rel="index" title="{{ _('Index') }}" href="{{ pathto('genindex') }}" />
+    {%- endif -%}
+
+    {%- if hasdoc('search') -%}
+      <link rel="search" title="{{ _('Search') }}" href="{{ pathto('search') }}" />
+    {%- endif -%}
+
+    {%- if hasdoc('copyright') -%}
+      <link rel="copyright" title="{{ _('Copyright') }}" href="{{ pathto('copyright') }}" />
+    {%- endif -%}
+
+    {%- if next -%}
+      <link rel="next" title="{{ next.title|striptags|e }}" href="{{ next.link|e }}" />
+    {%- endif -%}
+
+    {%- if prev -%}
+      <link rel="prev" title="{{ prev.title|striptags|e }}" href="{{ prev.link|e }}" />
+    {%- endif -%}
+  {%- endblock %}
+
+  {%- block canonicalurl %}
+    {%- if meta and meta.canonical_url -%}
+      <link rel="canonical" href="{{ meta.canonical_url|e }}" />
+    {%- elif pageurl %}
+      <link rel="canonical" href="{{ pageurl|e }}" />
+    {%- endif %}
+  {%- endblock -%}
+
+  <script>
+    function setColorMode(t){let e=document.documentElement;e.setAttribute("data-color-mode",t);let a=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,s=t;"auto"===t&&(s=a?"dark":"light"),"light"===s?(e.classList.remove("dark"),e.classList.add("light")):(e.classList.remove("light"),e.classList.add("dark"))}
+    setColorMode("light");
+  </script>
+  {%- block styles -%}
+    {%- for css in css_files -%}
+      {% if css|attr("filename") -%}
+        {{ css_tag(css) }}
+      {%- else -%}
+        <link rel="stylesheet" href="{{ pathto(css, 1)|e }}" type="text/css" />
+      {%- endif %}
+    {% endfor -%}
+    {% include "partials/webfonts.html" %}
+    {% block themestyles %}{% endblock %}
+  {%- endblock -%}
+  {%- block extrahead %}{% endblock -%}
+  {%- include "partials/extra-head.html" -%}
+</head>
+<body>
+  {%- block document -%}
+    {%- include "partials/banner.html" -%}
+    {%- block header -%}
+      {% include "partials/site-head.html" with context %}
+    {%- endblock -%}
+
+    {%- block body %}{% endblock -%}
+
+    {%- block footer -%}
+      {% include "partials/site-foot.html" with context %}
+    {%- endblock -%}
+  {%- endblock -%}
+
+  {%- block scripts -%}
+    {%- for js in script_files %}
+      {{ js_tag(js) }}
+    {%- endfor %}
+    {%- block themescripts %}{% endblock -%}
+  {%- endblock -%}
+  {%- include "partials/extra-foot.html" -%}
+</body>
+</html>
