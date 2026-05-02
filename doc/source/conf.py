@@ -85,7 +85,12 @@ html_favicon = "_static/logo.png"
 html_extra_head = [
     """
     <script>
-    document.documentElement.setAttribute("data-theme", "light");
+    (function() {
+        var e = document.documentElement;
+        e.setAttribute("data-color-mode", "light");
+        e.classList.remove("dark");
+        e.classList.add("light");
+    })();
     </script>
     """,
 ]
