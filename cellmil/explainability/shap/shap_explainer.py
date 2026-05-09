@@ -544,18 +544,20 @@ class SHAPExplainer:
             logger.info(f"Saved SHAP values to {shap_file}")
 
         # Save feature importance for each head
+        feature_names = cell_data.get("feature_names")
         for head_name, feature_importance in shap_results[
             "feature_importance_per_head"
         ].items():
             importance_file = (
                 self.config.output_path / f"feature_importance_{head_name}.csv"
             )
-            importance_df = pd.DataFrame(
-                {
-                    "feature_idx": np.arange(len(feature_importance)),
-                    "importance": feature_importance,
-                }
-            )
+            importance_records: dict[str, Any] = {
+                "feature_idx": np.arange(len(feature_importance)),
+                "importance": feature_importance,
+            }
+            if feature_names is not None:
+                importance_records["feature_name"] = feature_names
+            importance_df = pd.DataFrame(importance_records)
             importance_df = importance_df.sort_values("importance", ascending=False)  # type: ignore
             importance_df.to_csv(importance_file, index=False)
             saved_files["data"].append(importance_file)
@@ -586,6 +588,7 @@ class SHAPExplainer:
                 "mean": float(attention_scores.mean()),
                 "std": float(attention_scores.std()),
             },
+            "feature_names": feature_names if feature_names is not None else [],
             "config": self.config.dict(),  # type: ignore
         }
 
