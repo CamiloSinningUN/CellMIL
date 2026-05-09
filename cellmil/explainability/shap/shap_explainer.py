@@ -23,6 +23,7 @@ from cellmil.interfaces.FeatureExtractorConfig import ExtractorType
 from cellmil.interfaces.CellSegmenterConfig import ModelType
 from cellmil.interfaces.GraphCreatorConfig import GraphCreatorType
 from cellmil.datamodels.transforms import TransformPipeline
+from cellmil.datamodels.transforms.correlation_filter import CorrelationFilterTransform
 from cellmil.datamodels.model import ModelStorage
 from cellmil.datamodels.datasets.utils import (
     get_cell_features,
@@ -340,6 +341,20 @@ class SHAPExplainer:
             # Apply transforms
             features = transforms.transform(features)
 
+            # Align feature names with post-transform features
+            if slide_feature_names is not None:
+                current_names = list(slide_feature_names)
+                for t in transforms.transforms:
+                    if isinstance(t, CorrelationFilterTransform) and t.is_fitted:
+                        mask = t.get_feature_importance_mask()
+                        if mask is not None:
+                            mask_np = mask.cpu().numpy() if isinstance(mask, torch.Tensor) else np.array(mask)
+                            current_names = [
+                                n for j, n in enumerate(current_names)
+                                if j < len(mask_np) and mask_np[j]
+                            ]
+                slide_feature_names = current_names
+
             # Load cell types if needed
             cell_types = None
             cell_types_dict = get_cell_types(
@@ -555,7 +570,7 @@ class SHAPExplainer:
                 "feature_idx": np.arange(len(feature_importance)),
                 "importance": feature_importance,
             }
-            if feature_names is not None:
+            if feature_names is not None and len(feature_names) == len(feature_importance):
                 importance_records["feature_name"] = feature_names
             importance_df = pd.DataFrame(importance_records)
             importance_df = importance_df.sort_values("importance", ascending=False)  # type: ignore
